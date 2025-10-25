@@ -64,9 +64,9 @@ function describePlayer(f) {
   return desc.join(", ");
 }
 function addPoint() {
-  score[lastBallHolder]++;
+  score[lastBallHolder] += 2; // Score 2 points for a basket
   updateUI();
-  document.getElementById('status').textContent = `Point for: ${describePlayer(playerFeatures[lastBallHolder]) || 'Player '+(lastBallHolder+1)}`;
+  document.getElementById('status').textContent = `2 points for: ${describePlayer(playerFeatures[lastBallHolder]) || 'Player '+(lastBallHolder+1)}`;
 }
 
 const video = document.getElementById('video');
@@ -96,25 +96,20 @@ function processFrame() {
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
     net.estimateMultiplePoses(video, {flipHorizontal:false, maxDetections:2}).then(poses=>{
-      // Find two people on court
       let players = poses.filter(p=>p.score>0.3);
-      // If less than two, fill with empty
       while (players.length<2) players.push({});
       for (let i=0;i<2;i++) {
         playerFeatures[i] = analyzeAppearance(players[i]);
       }
-      // Find the orange ball
       let ball = detectOrangeBall(ctx, canvas);
-      let holder = findBallHolder(players, ball);
+      let holder = findBallHolderTorso(players, ball);
 
-      // Possession logic
       if (holder!==null) {
         possession = holder;
         lastBallHolder = holder;
       }
       updateUI();
 
-      // Ball throw detection: If ball moves quickly past camera (simulate with orange blob)
       let now = Date.now();
       if (ball.detected && !lastBallDetected && now-lastThrowTime>2000) {
         addPoint();
@@ -126,17 +121,15 @@ function processFrame() {
   requestAnimationFrame(processFrame);
 }
 
-// Estimate player appearance: hair length (based on keypoints), clothing color
+// Analyze appearance for description (hair/shirt color)
 function analyzeAppearance(pose) {
   if (!pose || !pose.keypoints) return null;
-  // Hair: Distance between head keypoints
   let nose = pose.keypoints.find(k=>k.part==="nose");
   let leftEar = pose.keypoints.find(k=>k.part==="leftEar");
   let rightEar = pose.keypoints.find(k=>k.part==="rightEar");
   let eyeY = pose.keypoints.find(k=>k.part==="leftEye")?.position.y || 0;
   let earY = leftEar?.position.y || rightEar?.position.y || 0;
   let hairLength = (earY-eyeY)>25 ? "Long Hair" : "Short Hair";
-  // Clothing color: sample below neck
   let leftShoulder = pose.keypoints.find(k=>k.part==="leftShoulder");
   let rightShoulder = pose.keypoints.find(k=>k.part==="rightShoulder");
   let topX = Math.round((leftShoulder?.position.x+rightShoulder?.position.x)/2 || 0);
@@ -145,14 +138,12 @@ function analyzeAppearance(pose) {
   let topColor = colorToName(color);
   return {hair:hairLength, top:topColor};
 }
-// Sample color at x,y from canvas
 function sampleColor(ctx, x, y) {
   try {
     let d = ctx.getImageData(x, y, 1, 1).data;
     return {r:d[0],g:d[1],b:d[2]};
   } catch { return {r:0,g:0,b:0}; }
 }
-// Simple mapping RGB to color name
 function colorToName({r,g,b}) {
   if (r>180 && g>180 && b>180) return "White";
   if (r<60 && g<60 && b<60) return "Black";
@@ -165,7 +156,7 @@ function colorToName({r,g,b}) {
   return "";
 }
 
-// Find orange ball in frame
+// Ball detection (orange color)
 function detectOrangeBall(ctx, canvas) {
   let img = ctx.getImageData(0,0,canvas.width,canvas.height), orange=0, total=img.data.length/4, cx=0, cy=0;
   for(let i=0;i<img.data.length;i+=4){
@@ -182,17 +173,23 @@ function detectOrangeBall(ctx, canvas) {
   return {detected:true, x:cx, y:cy};
 }
 
-// Find which player is closest to ball
-function findBallHolder(players, ball) {
+// Find which player's torso is closest to the ball
+function findBallHolderTorso(players, ball) {
   if (!ball.detected) return null;
   let minDist = Infinity, holder=null;
   for (let i=0;i<2;i++) {
     let pose = players[i];
     if (!pose || !pose.keypoints) continue;
-    let hand = pose.keypoints.find(k=>k.part==="rightWrist")?.position || pose.keypoints.find(k=>k.part==="leftWrist")?.position;
-    if (!hand) continue;
-    let dist = Math.hypot(hand.x-ball.x, hand.y-ball.y);
-    if (dist<80 && dist<minDist) { minDist = dist; holder = i; }
+    let leftShoulder = pose.keypoints.find(k=>k.part==="leftShoulder")?.position;
+    let rightShoulder = pose.keypoints.find(k=>k.part==="rightShoulder")?.position;
+    let leftHip = pose.keypoints.find(k=>k.part==="leftHip")?.position;
+    let rightHip = pose.keypoints.find(k=>k.part==="rightHip")?.position;
+    if (!leftShoulder || !rightShoulder || !leftHip || !rightHip) continue;
+    // Torso midpoint
+    let torsoX = (leftShoulder.x + rightShoulder.x + leftHip.x + rightHip.x) / 4;
+    let torsoY = (leftShoulder.y + rightShoulder.y + leftHip.y + rightHip.y) / 4;
+    let dist = Math.hypot(torsoX-ball.x, torsoY-ball.y);
+    if (dist<120 && dist<minDist) { minDist = dist; holder = i; }
   }
   return holder;
 }
