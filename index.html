@@ -2,188 +2,202 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Basketball Scoreboard Hub</title>
+  <title>Basketball AI Scoreboard Hub</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- TensorFlow.js and PoseNet -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/posenet"></script>
   <style>
-    body {
-      background: #222;
-      color: #fff;
-      font-family: Arial, sans-serif;
-      margin: 0;
-      padding: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-    h1 {
-      margin-top: 20px;
-      font-size: 2.5em;
-      font-weight: bold;
-      text-shadow: 2px 2px 10px #000;
-    }
-    .scoreboard {
-      display: flex;
-      justify-content: center;
-      gap: 60px;
-      margin: 30px 0;
-    }
-    .player {
-      background: #333;
-      padding: 30px 40px;
-      border-radius: 20px;
-      box-shadow: 0 0 20px #444;
-      text-align: center;
-      min-width: 180px;
-    }
-    .player.active {
-      border: 3px solid #FFA500;
-      box-shadow: 0 0 30px #FFA500;
-    }
-    .score {
-      font-size: 3em;
-      font-weight: bold;
-      margin: 10px 0;
-    }
-    .controls {
-      display: flex;
-      gap: 20px;
-      margin-bottom: 25px;
-    }
-    .controls button {
-      padding: 12px 26px;
-      font-size: 1.1em;
-      border-radius: 10px;
-      border: none;
-      background: #FFA500;
-      color: #222;
-      font-weight: bold;
-      cursor: pointer;
-      box-shadow: 0 2px 8px #000;
-      transition: background 0.2s;
-    }
-    .controls button:active {
-      background: #cc8500;
-    }
-    #video {
-      border-radius: 18px;
-      box-shadow: 0 0 40px #000;
-      width: 640px;
-      max-width: 95vw;
-      margin-bottom: 20px;
-    }
-    #status {
-      margin-bottom: 16px;
-      font-size: 1.1em;
-      color: #FFA500;
-      text-shadow: 1px 2px 8px #000;
-    }
-    @media (max-width: 700px) {
-      #video { width: 98vw; }
-      .scoreboard { gap: 10vw; }
-      .player { padding: 18px 5vw; }
-    }
+    body { background: #222; color: #fff; font-family: Arial, sans-serif; margin:0; padding:0; text-align:center;}
+    h1 { font-size:2em; margin:20px; }
+    #video { border-radius: 16px; box-shadow: 0 0 20px #111; width: 640px; max-width:95vw; margin-bottom:12px;}
+    .scoreboard { display:flex; justify-content:center; gap:60px; margin:24px 0;}
+    .player { background:#333; padding:18px 28px; border-radius:16px; min-width:160px; box-shadow: 0 0 14px #444;}
+    .player.active { border:3px solid #FFA500; box-shadow: 0 0 22px #FFA500;}
+    .score { font-size:2.2em; font-weight:bold; margin:6px 0;}
+    .info { font-size:1.1em; margin:6px 0;}
+    #status { margin:16px 0; color:#FFA500;}
+    #canvas { display:none;}
+    @media (max-width:700px) { #video { width:99vw; } .scoreboard { gap:6vw; } .player { padding:12px 4vw; } }
   </style>
 </head>
 <body>
-  <h1>🏀 Basketball Scoreboard Hub</h1>
+  <h1>🏀 Basketball AI Scoreboard Hub</h1>
   <div class="scoreboard">
-    <div id="player1" class="player active">
-      <div>Player 1</div>
+    <div id="player1" class="player">
+      <div id="desc1" class="info">Player 1</div>
       <div class="score" id="score1">0</div>
-      <div id="possession1" style="font-size:1em;"></div>
+      <div id="possession1" class="info"></div>
     </div>
     <div id="player2" class="player">
-      <div>Player 2</div>
+      <div id="desc2" class="info">Player 2</div>
       <div class="score" id="score2">0</div>
-      <div id="possession2" style="font-size:1em;"></div>
+      <div id="possession2" class="info"></div>
     </div>
   </div>
-  <div class="controls">
-    <button onclick="switchPossession()">Switch Possession</button>
-    <button onclick="addPoint()">Add Point</button>
-  </div>
-  <div id="status">Initializing camera...</div>
+  <div id="status">Loading AI models and camera...</div>
   <video id="video" autoplay playsinline></video>
-  <canvas id="canvas" width="640" height="480" style="display:none;"></canvas>
+  <canvas id="canvas" width="640" height="480"></canvas>
 
-  <script>
-    let score = [0, 0];
-    let possession = 0; // 0: Player 1, 1: Player 2
-    let lastBallDetected = false;
-    let lastPointTime = 0;
+<script>
+let score = [0,0];
+let possession = 0; // 0 or 1
+let lastBallHolder = 0;
+let playerFeatures = [{}, {}];
+let lastBallDetected = false, lastThrowTime = 0;
 
-    function updateUI() {
-      document.getElementById('score1').textContent = score[0];
-      document.getElementById('score2').textContent = score[1];
-      document.getElementById('player1').classList.toggle('active', possession === 0);
-      document.getElementById('player2').classList.toggle('active', possession === 1);
-      document.getElementById('possession1').textContent = possession === 0 ? '🏀 Has Ball' : '';
-      document.getElementById('possession2').textContent = possession === 1 ? '🏀 Has Ball' : '';
-    }
+function updateUI() {
+  document.getElementById('score1').textContent = score[0];
+  document.getElementById('score2').textContent = score[1];
+  document.getElementById('player1').classList.toggle('active', possession === 0);
+  document.getElementById('player2').classList.toggle('active', possession === 1);
+  document.getElementById('possession1').textContent = possession === 0 ? "🏀 Has Ball" : "";
+  document.getElementById('possession2').textContent = possession === 1 ? "🏀 Has Ball" : "";
+  document.getElementById('desc1').textContent = describePlayer(playerFeatures[0]) || "Player 1";
+  document.getElementById('desc2').textContent = describePlayer(playerFeatures[1]) || "Player 2";
+}
+function describePlayer(f) {
+  if (!f) return "";
+  let desc = [];
+  if (f.hair) desc.push(f.hair);
+  if (f.top) desc.push(f.top);
+  return desc.join(", ");
+}
+function addPoint() {
+  score[lastBallHolder]++;
+  updateUI();
+  document.getElementById('status').textContent = `Point for: ${describePlayer(playerFeatures[lastBallHolder]) || 'Player '+(lastBallHolder+1)}`;
+}
 
-    function switchPossession() {
-      possession = 1 - possession;
-      updateUI();
-      document.getElementById('status').textContent = `Possession switched to Player ${possession+1}`;
-    }
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
 
-    function addPoint() {
-      score[possession]++;
-      updateUI();
-      document.getElementById('status').textContent = `Point added to Player ${possession+1}`;
-    }
+let net = null;
+navigator.mediaDevices.getUserMedia({video:true}).then(stream=>{
+  video.srcObject = stream;
+  video.onloadedmetadata = () => {
+    document.getElementById('status').textContent = "Camera ready. Loading PoseNet...";
+    loadAI();
+  }
+}).catch(err=>{
+  document.getElementById('status').textContent = "Camera access denied.";
+});
 
-    // Camera setup
-    const video = document.getElementById('video');
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
+async function loadAI() {
+  net = await posenet.load();
+  document.getElementById('status').textContent = "AI Ready. Detecting players and ball...";
+  processFrame();
+}
+function processFrame() {
+  if (video.readyState === video.HAVE_ENOUGH_DATA) {
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    navigator.mediaDevices.getUserMedia({ video: true })
-      .then(stream => {
-        video.srcObject = stream;
-        video.onloadedmetadata = () => {
-          document.getElementById('status').textContent = "Camera ready. Looking for orange ball...";
-          processFrame();
-        };
-      })
-      .catch(err => {
-        document.getElementById('status').textContent = "Camera access denied.";
-        console.error("Camera error:", err);
-      });
-
-    // Orange ball detection (simple color detection)
-    function processFrame() {
-      if (video.readyState === video.HAVE_ENOUGH_DATA) {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        let imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        let orangePixels = 0;
-        let totalPixels = imgData.data.length / 4;
-        for (let i = 0; i < imgData.data.length; i += 4) {
-          let r = imgData.data[i], g = imgData.data[i+1], b = imgData.data[i+2];
-          // Basic orange detection in RGB
-          if (r > 180 && g > 80 && g < 170 && b < 70) {
-            orangePixels++;
-          }
-        }
-        let orangeRatio = orangePixels / totalPixels;
-        let detected = orangeRatio > 0.03; // Tune this threshold for your ball/lighting
-
-        // Only trigger point if ball appears (simulate hoop detection by waving ball in view)
-        let now = Date.now();
-        if (detected && !lastBallDetected && now - lastPointTime > 2000) {
-          score[possession]++;
-          updateUI();
-          lastPointTime = now;
-          document.getElementById('status').textContent = `Orange ball detected! Point for Player ${possession+1}`;
-        }
-        lastBallDetected = detected;
+    net.estimateMultiplePoses(video, {flipHorizontal:false, maxDetections:2}).then(poses=>{
+      // Find two people on court
+      let players = poses.filter(p=>p.score>0.3);
+      // If less than two, fill with empty
+      while (players.length<2) players.push({});
+      for (let i=0;i<2;i++) {
+        playerFeatures[i] = analyzeAppearance(players[i]);
       }
-      requestAnimationFrame(processFrame);
-    }
+      // Find the orange ball
+      let ball = detectOrangeBall(ctx, canvas);
+      let holder = findBallHolder(players, ball);
 
-    updateUI();
-  </script>
+      // Possession logic
+      if (holder!==null) {
+        possession = holder;
+        lastBallHolder = holder;
+      }
+      updateUI();
+
+      // Ball throw detection: If ball moves quickly past camera (simulate with orange blob)
+      let now = Date.now();
+      if (ball.detected && !lastBallDetected && now-lastThrowTime>2000) {
+        addPoint();
+        lastThrowTime = now;
+      }
+      lastBallDetected = ball.detected;
+    });
+  }
+  requestAnimationFrame(processFrame);
+}
+
+// Estimate player appearance: hair length (based on keypoints), clothing color
+function analyzeAppearance(pose) {
+  if (!pose || !pose.keypoints) return null;
+  // Hair: Distance between head keypoints
+  let nose = pose.keypoints.find(k=>k.part==="nose");
+  let leftEar = pose.keypoints.find(k=>k.part==="leftEar");
+  let rightEar = pose.keypoints.find(k=>k.part==="rightEar");
+  let eyeY = pose.keypoints.find(k=>k.part==="leftEye")?.position.y || 0;
+  let earY = leftEar?.position.y || rightEar?.position.y || 0;
+  let hairLength = (earY-eyeY)>25 ? "Long Hair" : "Short Hair";
+  // Clothing color: sample below neck
+  let leftShoulder = pose.keypoints.find(k=>k.part==="leftShoulder");
+  let rightShoulder = pose.keypoints.find(k=>k.part==="rightShoulder");
+  let topX = Math.round((leftShoulder?.position.x+rightShoulder?.position.x)/2 || 0);
+  let topY = Math.round((leftShoulder?.position.y+rightShoulder?.position.y)/2 + 30 || 0);
+  let color = sampleColor(ctx, topX, topY);
+  let topColor = colorToName(color);
+  return {hair:hairLength, top:topColor};
+}
+// Sample color at x,y from canvas
+function sampleColor(ctx, x, y) {
+  try {
+    let d = ctx.getImageData(x, y, 1, 1).data;
+    return {r:d[0],g:d[1],b:d[2]};
+  } catch { return {r:0,g:0,b:0}; }
+}
+// Simple mapping RGB to color name
+function colorToName({r,g,b}) {
+  if (r>180 && g>180 && b>180) return "White";
+  if (r<60 && g<60 && b<60) return "Black";
+  if (r>120 && g>120 && b<60) return "Yellow";
+  if (r>150 && g<80 && b<80) return "Red";
+  if (g>150 && r<100 && b<100) return "Green";
+  if (b>150 && r<100 && g<100) return "Blue";
+  if (r>100 && b>100 && g<100) return "Purple";
+  if (r>100 && g>100 && b<100) return "Gray";
+  return "";
+}
+
+// Find orange ball in frame
+function detectOrangeBall(ctx, canvas) {
+  let img = ctx.getImageData(0,0,canvas.width,canvas.height), orange=0, total=img.data.length/4, cx=0, cy=0;
+  for(let i=0;i<img.data.length;i+=4){
+    let r=img.data[i],g=img.data[i+1],b=img.data[i+2];
+    if(r>180&&g>80&&g<170&&b<70){
+      orange++;
+      let px=(i/4)%canvas.width, py=Math.floor((i/4)/canvas.width);
+      cx+=px; cy+=py;
+    }
+  }
+  let detected = orange/total > 0.01;
+  if (!detected) return {detected:false};
+  cx = Math.round(cx/orange); cy = Math.round(cy/orange);
+  return {detected:true, x:cx, y:cy};
+}
+
+// Find which player is closest to ball
+function findBallHolder(players, ball) {
+  if (!ball.detected) return null;
+  let minDist = Infinity, holder=null;
+  for (let i=0;i<2;i++) {
+    let pose = players[i];
+    if (!pose || !pose.keypoints) continue;
+    let hand = pose.keypoints.find(k=>k.part==="rightWrist")?.position || pose.keypoints.find(k=>k.part==="leftWrist")?.position;
+    if (!hand) continue;
+    let dist = Math.hypot(hand.x-ball.x, hand.y-ball.y);
+    if (dist<80 && dist<minDist) { minDist = dist; holder = i; }
+  }
+  return holder;
+}
+
+updateUI();
+</script>
 </body>
 </html>
