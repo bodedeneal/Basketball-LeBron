@@ -2,9 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Basketball AI Scoreboard Hub</title>
+  <title>Basketball Arcade Scoreboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <!-- TensorFlow.js and PoseNet -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/posenet"></script>
   <style>
@@ -18,12 +17,38 @@
     .info { font-size:1.1em; margin:6px 0;}
     #status { margin:16px 0; color:#FFA500;}
     #canvas { display:none;}
+    .arcade-controls { margin:16px 0; }
+    .arcade-controls select, .arcade-controls button { font-size:1em; margin:0 8px; }
+    .timer { font-size:2em; color:#FFA500; margin:10px 0;}
+    .final-score { color:#FFD700; font-size:2em; margin:15px 0; }
     @media (max-width:700px) { #video { width:99vw; } .scoreboard { gap:6vw; } .player { padding:12px 4vw; } }
   </style>
 </head>
 <body>
-  <h1>🏀 Basketball AI Scoreboard Hub</h1>
-  <div class="scoreboard">
+  <h1>🏀 Basketball Scoreboard & Arcade Hub</h1>
+  <div class="arcade-controls">
+    <label for="mode">Mode:</label>
+    <select id="mode">
+      <option value="regular">Regular</option>
+      <option value="arcade">Arcade</option>
+    </select>
+    <label for="arcade-time">Arcade Time:</label>
+    <select id="arcade-time">
+      <option value="60">1 min</option>
+      <option value="120">2 min</option>
+      <option value="180">3 min</option>
+      <option value="300">5 min</option>
+    </select>
+    <label for="ball-color">Ball Color:</label>
+    <select id="ball-color">
+      <option value="orange">Orange</option>
+      <option value="red">Red</option>
+      <option value="black">Black</option>
+      <option value="brown">Brown</option>
+    </select>
+    <button onclick="startArcade()">Start Arcade</button>
+  </div>
+  <div class="scoreboard" id="scoreboard">
     <div id="player1" class="player">
       <div id="desc1" class="info">Player 1</div>
       <div class="score" id="score1">0</div>
@@ -35,16 +60,20 @@
       <div id="possession2" class="info"></div>
     </div>
   </div>
+  <div id="timer" class="timer" style="display:none;"></div>
+  <div id="finalScore" class="final-score" style="display:none;"></div>
   <div id="status">Loading AI models and camera...</div>
   <video id="video" autoplay playsinline></video>
   <canvas id="canvas" width="640" height="480"></canvas>
-
 <script>
 let score = [0,0];
-let possession = 0; // 0 or 1
+let possession = 0;
 let lastBallHolder = 0;
 let playerFeatures = [{}, {}];
 let lastBallDetected = false, lastThrowTime = 0;
+let arcadeActive = false, arcadeTimeLeft = 60, arcadeTimerInterval, arcadeScore = 0;
+let ballColor = "orange";
+let net = null;
 
 function updateUI() {
   document.getElementById('score1').textContent = score[0];
@@ -59,21 +88,72 @@ function updateUI() {
 function describePlayer(f) {
   if (!f) return "";
   let desc = [];
-  if (f.hair) desc.push(f.hair);
-  if (f.top) desc.push(f.top);
+  if (f.hairColor) desc.push(f.hairColor + " hair");
+  if (f.top) desc.push(f.top + " shirt");
   return desc.join(", ");
 }
+
 function addPoint() {
-  score[lastBallHolder] += 2; // Score 2 points for a basket
-  updateUI();
-  document.getElementById('status').textContent = `2 points for: ${describePlayer(playerFeatures[lastBallHolder]) || 'Player '+(lastBallHolder+1)}`;
+  if (arcadeActive) {
+    arcadeScore += 2;
+    document.getElementById('status').textContent = `Arcade: +2 points!`;
+    updateArcadeUI();
+  } else {
+    score[lastBallHolder] += 2;
+    document.getElementById('status').textContent = `2 points for: ${describePlayer(playerFeatures[lastBallHolder]) || 'Player '+(lastBallHolder+1)}`;
+    updateUI();
+  }
+}
+
+function updateArcadeUI() {
+  document.getElementById('scoreboard').style.display = "none";
+  document.getElementById('timer').style.display = "";
+  document.getElementById('finalScore').style.display = "none";
+  document.getElementById('timer').textContent = `Time left: ${arcadeTimeLeft}s | Score: ${arcadeScore}`;
+}
+
+function endArcade() {
+  arcadeActive = false;
+  clearInterval(arcadeTimerInterval);
+  document.getElementById('timer').style.display = "none";
+  document.getElementById('finalScore').style.display = "";
+  document.getElementById('finalScore').textContent = `Final Score: ${arcadeScore}`;
+  document.getElementById('scoreboard').style.display = "";
+  arcadeScore = 0;
+  document.getElementById('status').textContent = "Arcade Mode finished! Try again?";
+}
+
+function startArcade() {
+  let mode = document.getElementById('mode').value;
+  if (mode !== "arcade") {
+    arcadeActive = false;
+    document.getElementById('timer').style.display = "none";
+    document.getElementById('finalScore').style.display = "none";
+    document.getElementById('scoreboard').style.display = "";
+    document.getElementById('status').textContent = "Regular Mode";
+    return;
+  }
+  arcadeActive = true;
+  arcadeTimeLeft = parseInt(document.getElementById('arcade-time').value);
+  ballColor = document.getElementById('ball-color').value;
+  arcadeScore = 0;
+  document.getElementById('finalScore').style.display = "none";
+  document.getElementById('scoreboard').style.display = "none";
+  document.getElementById('timer').style.display = "";
+  document.getElementById('status').textContent = "Arcade Mode started! Score as much as you can!";
+  updateArcadeUI();
+  clearInterval(arcadeTimerInterval);
+  arcadeTimerInterval = setInterval(() => {
+    arcadeTimeLeft--;
+    updateArcadeUI();
+    if (arcadeTimeLeft <= 0) endArcade();
+  }, 1000);
 }
 
 const video = document.getElementById('video');
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 
-let net = null;
 navigator.mediaDevices.getUserMedia({video:true}).then(stream=>{
   video.srcObject = stream;
   video.onloadedmetadata = () => {
@@ -101,14 +181,14 @@ function processFrame() {
       for (let i=0;i<2;i++) {
         playerFeatures[i] = analyzeAppearance(players[i]);
       }
-      let ball = detectOrangeBall(ctx, canvas);
+      let ball = detectColoredBall(ctx, canvas, ballColor);
       let holder = findBallHolderTorso(players, ball);
 
       if (holder!==null) {
         possession = holder;
         lastBallHolder = holder;
       }
-      updateUI();
+      if (!arcadeActive) updateUI();
 
       let now = Date.now();
       if (ball.detected && !lastBallDetected && now-lastThrowTime>2000) {
@@ -121,22 +201,52 @@ function processFrame() {
   requestAnimationFrame(processFrame);
 }
 
-// Analyze appearance for description (hair/shirt color)
+// Hair color detection
 function analyzeAppearance(pose) {
   if (!pose || !pose.keypoints) return null;
-  let nose = pose.keypoints.find(k=>k.part==="nose");
-  let leftEar = pose.keypoints.find(k=>k.part==="leftEar");
-  let rightEar = pose.keypoints.find(k=>k.part==="rightEar");
-  let eyeY = pose.keypoints.find(k=>k.part==="leftEye")?.position.y || 0;
-  let earY = leftEar?.position.y || rightEar?.position.y || 0;
-  let hairLength = (earY-eyeY)>25 ? "Long Hair" : "Short Hair";
+  let nose = pose.keypoints.find(k=>k.part==="nose")?.position;
+  let leftEye = pose.keypoints.find(k=>k.part==="leftEye")?.position;
+  let rightEye = pose.keypoints.find(k=>k.part==="rightEye")?.position;
+  let hairSamplePoints = [];
+  if(nose) hairSamplePoints.push({x: nose.x, y: nose.y - 35});
+  if(leftEye && rightEye) hairSamplePoints.push({x: (leftEye.x + rightEye.x)/2, y: (leftEye.y + rightEye.y)/2 - 30});
+  let leftEar = pose.keypoints.find(k=>k.part==="leftEar")?.position;
+  let rightEar = pose.keypoints.find(k=>k.part==="rightEar")?.position;
+  if(leftEar) hairSamplePoints.push({x: leftEar.x, y: leftEar.y - 20});
+  if(rightEar) hairSamplePoints.push({x: rightEar.x, y: rightEar.y - 20});
+  let hairColor = getAverageHairColor(ctx, hairSamplePoints);
+
   let leftShoulder = pose.keypoints.find(k=>k.part==="leftShoulder");
   let rightShoulder = pose.keypoints.find(k=>k.part==="rightShoulder");
   let topX = Math.round((leftShoulder?.position.x+rightShoulder?.position.x)/2 || 0);
   let topY = Math.round((leftShoulder?.position.y+rightShoulder?.position.y)/2 + 30 || 0);
   let color = sampleColor(ctx, topX, topY);
   let topColor = colorToName(color);
-  return {hair:hairLength, top:topColor};
+
+  return {hairColor: hairColor, top: topColor};
+}
+
+function getAverageHairColor(ctx, points) {
+  let colors = [];
+  for(let pt of points) {
+    let c = sampleColor(ctx, Math.round(pt.x), Math.round(pt.y));
+    colors.push(c);
+  }
+  let avg = averageColor(colors);
+  return hairColorName(avg);
+}
+function averageColor(colors) {
+  let r=0,g=0,b=0,n=colors.length;
+  for(let c of colors) { r+=c.r; g+=c.g; b+=c.b; }
+  return {r:Math.round(r/n),g:Math.round(g/n),b:Math.round(b/n)};
+}
+function hairColorName({r,g,b}) {
+  if(r>190 && g>170 && b<120) return "Blonde";
+  if(r<60 && g<60 && b<70) return "Black";
+  if(r>100 && r<180 && g>60 && g<120 && b>40 && b<90) return "Brown";
+  if(r>150 && g<80 && b<80) return "Red";
+  if(r>180 && g>180 && b>180) return "Gray";
+  return "Brunette";
 }
 function sampleColor(ctx, x, y) {
   try {
@@ -153,27 +263,33 @@ function colorToName({r,g,b}) {
   if (b>150 && r<100 && g<100) return "Blue";
   if (r>100 && b>100 && g<100) return "Purple";
   if (r>100 && g>100 && b<100) return "Gray";
+  if (r>100 && g>70 && g<140 && b>40 && b<90) return "Brown";
   return "";
 }
 
-// Ball detection (orange color)
-function detectOrangeBall(ctx, canvas) {
-  let img = ctx.getImageData(0,0,canvas.width,canvas.height), orange=0, total=img.data.length/4, cx=0, cy=0;
+// Ball detection for multiple colors
+function detectColoredBall(ctx, canvas, color) {
+  let img = ctx.getImageData(0,0,canvas.width,canvas.height), match=0, total=img.data.length/4, cx=0, cy=0;
   for(let i=0;i<img.data.length;i+=4){
     let r=img.data[i],g=img.data[i+1],b=img.data[i+2];
-    if(r>180&&g>80&&g<170&&b<70){
-      orange++;
+    let isMatch = false;
+    if(color==="orange") isMatch = r>170 && g>70 && g<200 && b<80;
+    if(color==="red") isMatch = r>180 && g<100 && b<100;
+    if(color==="black") isMatch = r<60 && g<60 && b<60;
+    if(color==="brown") isMatch = r>100 && g>70 && g<140 && b>40 && b<90;
+    if(isMatch){
+      match++;
       let px=(i/4)%canvas.width, py=Math.floor((i/4)/canvas.width);
       cx+=px; cy+=py;
     }
   }
-  let detected = orange/total > 0.01;
+  let detected = match/total > 0.01;
   if (!detected) return {detected:false};
-  cx = Math.round(cx/orange); cy = Math.round(cy/orange);
+  cx = Math.round(cx/match); cy = Math.round(cy/match);
   return {detected:true, x:cx, y:cy};
 }
 
-// Find which player's torso is closest to the ball
+// Ball holder detection
 function findBallHolderTorso(players, ball) {
   if (!ball.detected) return null;
   let minDist = Infinity, holder=null;
@@ -185,7 +301,6 @@ function findBallHolderTorso(players, ball) {
     let leftHip = pose.keypoints.find(k=>k.part==="leftHip")?.position;
     let rightHip = pose.keypoints.find(k=>k.part==="rightHip")?.position;
     if (!leftShoulder || !rightShoulder || !leftHip || !rightHip) continue;
-    // Torso midpoint
     let torsoX = (leftShoulder.x + rightShoulder.x + leftHip.x + rightHip.x) / 4;
     let torsoY = (leftShoulder.y + rightShoulder.y + leftHip.y + rightHip.y) / 4;
     let dist = Math.hypot(torsoX-ball.x, torsoY-ball.y);
