@@ -1,315 +1,443 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Basketball Arcade Scoreboard</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/posenet"></script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Camera Invisible Keyboard — Prototype</title>
   <style>
-    body { background: #222; color: #fff; font-family: Arial, sans-serif; margin:0; padding:0; text-align:center;}
-    h1 { font-size:2em; margin:20px; }
-    #video { border-radius: 16px; box-shadow: 0 0 20px #111; width: 640px; max-width:95vw; margin-bottom:12px;}
-    .scoreboard { display:flex; justify-content:center; gap:60px; margin:24px 0;}
-    .player { background:#333; padding:18px 28px; border-radius:16px; min-width:160px; box-shadow: 0 0 14px #444;}
-    .player.active { border:3px solid #FFA500; box-shadow: 0 0 22px #FFA500;}
-    .score { font-size:2.2em; font-weight:bold; margin:6px 0;}
-    .info { font-size:1.1em; margin:6px 0;}
-    #status { margin:16px 0; color:#FFA500;}
-    #canvas { display:none;}
-    .arcade-controls { margin:16px 0; }
-    .arcade-controls select, .arcade-controls button { font-size:1em; margin:0 8px; }
-    .timer { font-size:2em; color:#FFA500; margin:10px 0;}
-    .final-score { color:#FFD700; font-size:2em; margin:15px 0; }
-    @media (max-width:700px) { #video { width:99vw; } .scoreboard { gap:6vw; } .player { padding:12px 4vw; } }
+    :root{
+      --bg:#0b1220;
+      --panel:#0f1724;
+      --accent:#22c1c3;
+      --muted:#94a3b8;
+      --key:#1e293b;
+      --key-active:#065f60;
+      --white:#e6eef6;
+    }
+    html,body{height:100%;margin:0;font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial; background:linear-gradient(180deg,var(--bg),#071020); color:var(--white)}
+    .app{
+      max-width:1100px;margin:18px auto;padding:18px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius:12px;box-shadow:0 6px 30px rgba(2,6,23,0.6);
+    }
+    header{display:flex;align-items:center;gap:12px}
+    h1{margin:0;font-size:18px}
+    .controls{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+    button, select{
+      background:var(--panel);color:var(--white);border:1px solid rgba(255,255,255,0.04);padding:8px 12px;border-radius:8px;cursor:pointer;
+    }
+    button.small{padding:6px 8px;font-size:13px}
+    .stage{display:flex;gap:16px;margin-top:16px;align-items:flex-start}
+    .video-wrap{position:relative;flex:1;min-width:320px;max-width:800px;background:#000;border-radius:10px;overflow:hidden;border:1px solid rgba(255,255,255,0.03)}
+    video{display:block; width:100%; height:auto; transform:scaleX(-1)} /* mirrored */
+    canvas{position:absolute;left:0;top:0;pointer-events:none; width:100%; height:100%}
+    .side{width:320px;min-width:220px}
+    .textbox{width:100%;height:150px;background:#071228;border-radius:8px;padding:10px;color:var(--white);border:1px solid rgba(255,255,255,0.03);resize:vertical; font-size:15px}
+    .hint{color:var(--muted);font-size:13px;margin-top:8px}
+    .row{display:flex;gap:6px;margin-top:8px}
+    .kbd-mode{display:flex;gap:8px;align-items:center}
+    .key-count{font-size:13px;color:var(--muted)}
+    footer{margin-top:12px;color:var(--muted);font-size:13px}
   </style>
 </head>
 <body>
-  <h1>🏀 Basketball Scoreboard & Arcade Hub</h1>
-  <div class="arcade-controls">
-    <label for="mode">Mode:</label>
-    <select id="mode">
-      <option value="regular">Regular</option>
-      <option value="arcade">Arcade</option>
-    </select>
-    <label for="arcade-time">Arcade Time:</label>
-    <select id="arcade-time">
-      <option value="60">1 min</option>
-      <option value="120">2 min</option>
-      <option value="180">3 min</option>
-      <option value="300">5 min</option>
-    </select>
-    <label for="ball-color">Ball Color:</label>
-    <select id="ball-color">
-      <option value="orange">Orange</option>
-      <option value="red">Red</option>
-      <option value="black">Black</option>
-      <option value="brown">Brown</option>
-    </select>
-    <button onclick="startArcade()">Start Arcade</button>
-  </div>
-  <div class="scoreboard" id="scoreboard">
-    <div id="player1" class="player">
-      <div id="desc1" class="info">Player 1</div>
-      <div class="score" id="score1">0</div>
-      <div id="possession1" class="info"></div>
+  <div class="app">
+    <header>
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" style="opacity:.95">
+        <path d="M3 12h18" stroke="#22c1c3" stroke-width="2" stroke-linecap="round"></path>
+        <path d="M8 5h8" stroke="#94a3b8" stroke-width="1.6" stroke-linecap="round"></path>
+      </svg>
+      <div>
+        <h1>Camera Invisible Keyboard — Prototype</h1>
+        <div style="color:var(--muted);font-size:13px">Uses MediaPipe Hands to track index finger and detect taps (single-camera prototype).</div>
+      </div>
+    </header>
+
+    <div class="controls">
+      <button id="btn-start" class="small">Start Camera</button>
+      <button id="btn-stop" class="small" disabled>Stop</button>
+      <button id="btn-clear" class="small">Clear Text</button>
+      <button id="btn-copy" class="small">Copy to clipboard</button>
+      <label style="display:flex;align-items:center;gap:6px;color:var(--muted);margin-left:6px">
+        <input id="mirror" type="checkbox" checked /> Mirror
+      </label>
+      <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+        <label style="color:var(--muted)">Tap velocity</label>
+        <input id="vel" type="range" min="2" max="20" value="8" />
+      </div>
     </div>
-    <div id="player2" class="player">
-      <div id="desc2" class="info">Player 2</div>
-      <div class="score" id="score2">0</div>
-      <div id="possession2" class="info"></div>
+
+    <div class="stage">
+      <div class="video-wrap" id="videoWrap">
+        <video id="video" autoplay muted playsinline></video>
+        <canvas id="overlay"></canvas>
+      </div>
+
+      <div class="side">
+        <div>
+          <textarea id="typed" class="textbox" placeholder="Typed text will appear here..." readonly></textarea>
+          <div class="hint">Tip: position your index finger above the virtual keyboard (shown on-screen). Tap by quickly moving your finger down. Lighting and contrast affect detection.</div>
+          <div class="row">
+            <div class="kbd-mode">
+              <label class="key-count">Layout:</label>
+              <select id="layout">
+                <option value="qwerty">QWERTY (default)</option>
+                <option value="numeric">Numeric (10 keys)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="row">
+            <button id="btn-calibrate">Calibrate Keyboard Area</button>
+            <button id="btn-reset-cal">Reset Area</button>
+          </div>
+
+          <div class="row" style="margin-top:10px">
+            <button id="btn-save" title="Save current text to localStorage">Save text</button>
+            <button id="btn-load" title="Load saved text from localStorage">Load saved</button>
+            <button id="btn-download" title="Download index.html and run locally">Download (single-file)</button>
+          </div>
+
+        </div>
+      </div>
     </div>
+
+    <footer>
+      This is a prototype: single-camera tap detection is heuristic and may be inaccurate. For better robustness use depth sensors, colored fingertip marker, or machine learning models.
+    </footer>
   </div>
-  <div id="timer" class="timer" style="display:none;"></div>
-  <div id="finalScore" class="final-score" style="display:none;"></div>
-  <div id="status">Loading AI models and camera...</div>
-  <video id="video" autoplay playsinline></video>
-  <canvas id="canvas" width="640" height="480"></canvas>
-<script>
-let score = [0,0];
-let possession = 0;
-let lastBallHolder = 0;
-let playerFeatures = [{}, {}];
-let lastBallDetected = false, lastThrowTime = 0;
-let arcadeActive = false, arcadeTimeLeft = 60, arcadeTimerInterval, arcadeScore = 0;
-let ballColor = "orange";
-let net = null;
 
-function updateUI() {
-  document.getElementById('score1').textContent = score[0];
-  document.getElementById('score2').textContent = score[1];
-  document.getElementById('player1').classList.toggle('active', possession === 0);
-  document.getElementById('player2').classList.toggle('active', possession === 1);
-  document.getElementById('possession1').textContent = possession === 0 ? "🏀 Has Ball" : "";
-  document.getElementById('possession2').textContent = possession === 1 ? "🏀 Has Ball" : "";
-  document.getElementById('desc1').textContent = describePlayer(playerFeatures[0]) || "Player 1";
-  document.getElementById('desc2').textContent = describePlayer(playerFeatures[1]) || "Player 2";
-}
-function describePlayer(f) {
-  if (!f) return "";
-  let desc = [];
-  if (f.hairColor) desc.push(f.hairColor + " hair");
-  if (f.top) desc.push(f.top + " shirt");
-  return desc.join(", ");
-}
+  <!-- MediaPipe scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
 
-function addPoint() {
-  if (arcadeActive) {
-    arcadeScore += 2;
-    document.getElementById('status').textContent = `Arcade: +2 points!`;
-    updateArcadeUI();
-  } else {
-    score[lastBallHolder] += 2;
-    document.getElementById('status').textContent = `2 points for: ${describePlayer(playerFeatures[lastBallHolder]) || 'Player '+(lastBallHolder+1)}`;
-    updateUI();
-  }
-}
+  <script>
+  // Basic prototype: tracks index fingertip and detects quick downward motion to simulate a "tap".
+  (function(){
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('overlay');
+    const ctx = canvas.getContext('2d');
+    const startBtn = document.getElementById('btn-start');
+    const stopBtn = document.getElementById('btn-stop');
+    const copyBtn = document.getElementById('btn-copy');
+    const clearBtn = document.getElementById('btn-clear');
+    const typed = document.getElementById('typed');
+    const velRange = document.getElementById('vel');
+    const mirrorToggle = document.getElementById('mirror');
+    const layoutSelect = document.getElementById('layout');
+    const calBtn = document.getElementById('btn-calibrate');
+    const resetCalBtn = document.getElementById('btn-reset-cal');
 
-function updateArcadeUI() {
-  document.getElementById('scoreboard').style.display = "none";
-  document.getElementById('timer').style.display = "";
-  document.getElementById('finalScore').style.display = "none";
-  document.getElementById('timer').textContent = `Time left: ${arcadeTimeLeft}s | Score: ${arcadeScore}`;
-}
+    let camera = null;
+    let hands = null;
+    let videoWidth = 640, videoHeight = 480;
+    let lastIndexY = null;
+    let lastTs = null;
+    let cooldown = 400; // ms
+    let lastTapTs = 0;
+    let keyboardArea = null; // {x,y,w,h} in pixels on canvas
+    let isCalibrating = false;
+    let calStart = null;
+    let lastKeyPressed = null;
 
-function endArcade() {
-  arcadeActive = false;
-  clearInterval(arcadeTimerInterval);
-  document.getElementById('timer').style.display = "none";
-  document.getElementById('finalScore').style.display = "";
-  document.getElementById('finalScore').textContent = `Final Score: ${arcadeScore}`;
-  document.getElementById('scoreboard').style.display = "";
-  arcadeScore = 0;
-  document.getElementById('status').textContent = "Arcade Mode finished! Try again?";
-}
+    // Keyboard rows (qwerty) simple layout — adaptive to keyboardArea
+    const layouts = {
+      qwerty: [
+        "qwertyuiop".split(''),
+        "asdfghjkl".split(''),
+        "zxcvbnm".split(''),
+        ["Space"]
+      ],
+      numeric: [
+        ["1","2","3","4","5"],
+        ["6","7","8","9","0"],
+        ["-","/",".","Enter"]
+      ]
+    };
 
-function startArcade() {
-  let mode = document.getElementById('mode').value;
-  if (mode !== "arcade") {
-    arcadeActive = false;
-    document.getElementById('timer').style.display = "none";
-    document.getElementById('finalScore').style.display = "none";
-    document.getElementById('scoreboard').style.display = "";
-    document.getElementById('status').textContent = "Regular Mode";
-    return;
-  }
-  arcadeActive = true;
-  arcadeTimeLeft = parseInt(document.getElementById('arcade-time').value);
-  ballColor = document.getElementById('ball-color').value;
-  arcadeScore = 0;
-  document.getElementById('finalScore').style.display = "none";
-  document.getElementById('scoreboard').style.display = "none";
-  document.getElementById('timer').style.display = "";
-  document.getElementById('status').textContent = "Arcade Mode started! Score as much as you can!";
-  updateArcadeUI();
-  clearInterval(arcadeTimerInterval);
-  arcadeTimerInterval = setInterval(() => {
-    arcadeTimeLeft--;
-    updateArcadeUI();
-    if (arcadeTimeLeft <= 0) endArcade();
-  }, 1000);
-}
-
-const video = document.getElementById('video');
-const canvas = document.getElementById('canvas');
-const ctx = canvas.getContext('2d');
-
-navigator.mediaDevices.getUserMedia({video:true}).then(stream=>{
-  video.srcObject = stream;
-  video.onloadedmetadata = () => {
-    document.getElementById('status').textContent = "Camera ready. Loading PoseNet...";
-    loadAI();
-  }
-}).catch(err=>{
-  document.getElementById('status').textContent = "Camera access denied.";
-});
-
-async function loadAI() {
-  net = await posenet.load();
-  document.getElementById('status').textContent = "AI Ready. Detecting players and ball...";
-  processFrame();
-}
-function processFrame() {
-  if (video.readyState === video.HAVE_ENOUGH_DATA) {
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-    net.estimateMultiplePoses(video, {flipHorizontal:false, maxDetections:2}).then(poses=>{
-      let players = poses.filter(p=>p.score>0.3);
-      while (players.length<2) players.push({});
-      for (let i=0;i<2;i++) {
-        playerFeatures[i] = analyzeAppearance(players[i]);
-      }
-      let ball = detectColoredBall(ctx, canvas, ballColor);
-      let holder = findBallHolderTorso(players, ball);
-
-      if (holder!==null) {
-        possession = holder;
-        lastBallHolder = holder;
-      }
-      if (!arcadeActive) updateUI();
-
-      let now = Date.now();
-      if (ball.detected && !lastBallDetected && now-lastThrowTime>2000) {
-        addPoint();
-        lastThrowTime = now;
-      }
-      lastBallDetected = ball.detected;
-    });
-  }
-  requestAnimationFrame(processFrame);
-}
-
-// Hair color detection
-function analyzeAppearance(pose) {
-  if (!pose || !pose.keypoints) return null;
-  let nose = pose.keypoints.find(k=>k.part==="nose")?.position;
-  let leftEye = pose.keypoints.find(k=>k.part==="leftEye")?.position;
-  let rightEye = pose.keypoints.find(k=>k.part==="rightEye")?.position;
-  let hairSamplePoints = [];
-  if(nose) hairSamplePoints.push({x: nose.x, y: nose.y - 35});
-  if(leftEye && rightEye) hairSamplePoints.push({x: (leftEye.x + rightEye.x)/2, y: (leftEye.y + rightEye.y)/2 - 30});
-  let leftEar = pose.keypoints.find(k=>k.part==="leftEar")?.position;
-  let rightEar = pose.keypoints.find(k=>k.part==="rightEar")?.position;
-  if(leftEar) hairSamplePoints.push({x: leftEar.x, y: leftEar.y - 20});
-  if(rightEar) hairSamplePoints.push({x: rightEar.x, y: rightEar.y - 20});
-  let hairColor = getAverageHairColor(ctx, hairSamplePoints);
-
-  let leftShoulder = pose.keypoints.find(k=>k.part==="leftShoulder");
-  let rightShoulder = pose.keypoints.find(k=>k.part==="rightShoulder");
-  let topX = Math.round((leftShoulder?.position.x+rightShoulder?.position.x)/2 || 0);
-  let topY = Math.round((leftShoulder?.position.y+rightShoulder?.position.y)/2 + 30 || 0);
-  let color = sampleColor(ctx, topX, topY);
-  let topColor = colorToName(color);
-
-  return {hairColor: hairColor, top: topColor};
-}
-
-function getAverageHairColor(ctx, points) {
-  let colors = [];
-  for(let pt of points) {
-    let c = sampleColor(ctx, Math.round(pt.x), Math.round(pt.y));
-    colors.push(c);
-  }
-  let avg = averageColor(colors);
-  return hairColorName(avg);
-}
-function averageColor(colors) {
-  let r=0,g=0,b=0,n=colors.length;
-  for(let c of colors) { r+=c.r; g+=c.g; b+=c.b; }
-  return {r:Math.round(r/n),g:Math.round(g/n),b:Math.round(b/n)};
-}
-function hairColorName({r,g,b}) {
-  if(r>190 && g>170 && b<120) return "Blonde";
-  if(r<60 && g<60 && b<70) return "Black";
-  if(r>100 && r<180 && g>60 && g<120 && b>40 && b<90) return "Brown";
-  if(r>150 && g<80 && b<80) return "Red";
-  if(r>180 && g>180 && b>180) return "Gray";
-  return "Brunette";
-}
-function sampleColor(ctx, x, y) {
-  try {
-    let d = ctx.getImageData(x, y, 1, 1).data;
-    return {r:d[0],g:d[1],b:d[2]};
-  } catch { return {r:0,g:0,b:0}; }
-}
-function colorToName({r,g,b}) {
-  if (r>180 && g>180 && b>180) return "White";
-  if (r<60 && g<60 && b<60) return "Black";
-  if (r>120 && g>120 && b<60) return "Yellow";
-  if (r>150 && g<80 && b<80) return "Red";
-  if (g>150 && r<100 && b<100) return "Green";
-  if (b>150 && r<100 && g<100) return "Blue";
-  if (r>100 && b>100 && g<100) return "Purple";
-  if (r>100 && g>100 && b<100) return "Gray";
-  if (r>100 && g>70 && g<140 && b>40 && b<90) return "Brown";
-  return "";
-}
-
-// Ball detection for multiple colors
-function detectColoredBall(ctx, canvas, color) {
-  let img = ctx.getImageData(0,0,canvas.width,canvas.height), match=0, total=img.data.length/4, cx=0, cy=0;
-  for(let i=0;i<img.data.length;i+=4){
-    let r=img.data[i],g=img.data[i+1],b=img.data[i+2];
-    let isMatch = false;
-    if(color==="orange") isMatch = r>170 && g>70 && g<200 && b<80;
-    if(color==="red") isMatch = r>180 && g<100 && b<100;
-    if(color==="black") isMatch = r<60 && g<60 && b<60;
-    if(color==="brown") isMatch = r>100 && g>70 && g<140 && b>40 && b<90;
-    if(isMatch){
-      match++;
-      let px=(i/4)%canvas.width, py=Math.floor((i/4)/canvas.width);
-      cx+=px; cy+=py;
+    function fitCanvas(){
+      const wrap = document.getElementById('videoWrap');
+      canvas.width = wrap.clientWidth;
+      canvas.height = wrap.clientHeight;
+      videoWidth = canvas.width; videoHeight = canvas.height;
     }
-  }
-  let detected = match/total > 0.01;
-  if (!detected) return {detected:false};
-  cx = Math.round(cx/match); cy = Math.round(cy/match);
-  return {detected:true, x:cx, y:cy};
-}
 
-// Ball holder detection
-function findBallHolderTorso(players, ball) {
-  if (!ball.detected) return null;
-  let minDist = Infinity, holder=null;
-  for (let i=0;i<2;i++) {
-    let pose = players[i];
-    if (!pose || !pose.keypoints) continue;
-    let leftShoulder = pose.keypoints.find(k=>k.part==="leftShoulder")?.position;
-    let rightShoulder = pose.keypoints.find(k=>k.part==="rightShoulder")?.position;
-    let leftHip = pose.keypoints.find(k=>k.part==="leftHip")?.position;
-    let rightHip = pose.keypoints.find(k=>k.part==="rightHip")?.position;
-    if (!leftShoulder || !rightShoulder || !leftHip || !rightHip) continue;
-    let torsoX = (leftShoulder.x + rightShoulder.x + leftHip.x + rightHip.x) / 4;
-    let torsoY = (leftShoulder.y + rightShoulder.y + leftHip.y + rightHip.y) / 4;
-    let dist = Math.hypot(torsoX-ball.x, torsoY-ball.y);
-    if (dist<120 && dist<minDist) { minDist = dist; holder = i; }
-  }
-  return holder;
-}
+    window.addEventListener('resize', fitCanvas);
 
-updateUI();
-</script>
+    function drawKeyboard(){
+      if(!keyboardArea){
+        // default: bottom 35% of canvas
+        keyboardArea = {
+          x: canvas.width * 0.05,
+          y: canvas.height * 0.60,
+          w: canvas.width * 0.9,
+          h: canvas.height * 0.35
+        };
+      }
+      const L = layouts[layoutSelect.value] || layouts.qwerty;
+      ctx.save();
+      // keyboard background
+      ctx.fillStyle = 'rgba(10,12,16,0.5)';
+      ctx.fillRect(keyboardArea.x, keyboardArea.y, keyboardArea.w, keyboardArea.h);
+      // draw rows
+      const rows = L.length;
+      const rowH = keyboardArea.h / rows;
+      for(let r=0;r<rows;r++){
+        const row = L[r];
+        const cols = row.length;
+        const padding = 6;
+        const keyW = (keyboardArea.w - (cols+1)*padding) / cols;
+        for(let c=0;c<cols;c++){
+          const kx = keyboardArea.x + padding + c*(keyW + padding);
+          const ky = keyboardArea.y + r*rowH + padding/1.5;
+          const kw = (r === rows-1 && row[0] === "Space") ? keyboardArea.w - padding*2 : keyW;
+          const kh = rowH - padding*1.5;
+          const label = row[c];
+          // key background
+          ctx.fillStyle = (lastKeyPressed && lastKeyPressed.row===r && lastKeyPressed.col===c) ? 'rgba(5,95,96,0.95)' : 'rgba(30,41,59,0.88)';
+          ctx.strokeStyle = "rgba(255,255,255,0.03)";
+          roundRect(ctx, kx, ky, kw, kh, 8, true, true);
+          // label
+          ctx.fillStyle = '#e6eef6';
+          ctx.font = `${Math.max(14, kh*0.45)}px system-ui`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          const tx = kx + kw/2;
+          const ty = ky + kh/2;
+          ctx.fillText(label, tx, ty);
+        }
+      }
+      // border
+      ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+      ctx.strokeRect(keyboardArea.x, keyboardArea.y, keyboardArea.w, keyboardArea.h);
+      ctx.restore();
+    }
+
+    function roundRect(ctx, x, y, w, h, r, fill, stroke) {
+      if (typeof r === 'undefined') r = 5;
+      if (typeof r === 'number') r = {tl: r, tr: r, br: r, bl: r};
+      ctx.beginPath();
+      ctx.moveTo(x + r.tl, y);
+      ctx.lineTo(x + w - r.tr, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r.tr);
+      ctx.lineTo(x + w, y + h - r.br);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r.br, y + h);
+      ctx.lineTo(x + r.bl, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r.bl);
+      ctx.lineTo(x, y + r.tl);
+      ctx.quadraticCurveTo(x, y, x + r.tl, y);
+      ctx.closePath();
+      if (fill) ctx.fill();
+      if (stroke) ctx.stroke();
+    }
+
+    function getKeyAt(x,y){
+      if(!keyboardArea) return null;
+      const L = layouts[layoutSelect.value] || layouts.qwerty;
+      const relX = x - keyboardArea.x;
+      const relY = y - keyboardArea.y;
+      if(relX<0 || relY<0 || relX>keyboardArea.w || relY>keyboardArea.h) return null;
+      const rows = L.length;
+      const rowH = keyboardArea.h / rows;
+      const r = Math.floor(relY / rowH);
+      const row = L[r];
+      const cols = row.length;
+      const padding = 6;
+      const keyW = (keyboardArea.w - (cols+1)*padding) / cols;
+      for(let c=0;c<cols;c++){
+        const kx = padding + c*(keyW + padding);
+        const ky = r*rowH + padding/1.5;
+        const kw = (r === rows-1 && row[0] === "Space") ? keyboardArea.w - padding*2 : keyW;
+        const kh = rowH - padding*1.5;
+        if(relX >= kx && relX <= kx+kw && relY >= ky && relY <= ky+kh){
+          return {row:r,col:c,label:row[c],keyX:keyboardArea.x+kx,keyY:keyboardArea.y+ky,keyW:kw,keyH:kh};
+        }
+      }
+      return null;
+    }
+
+    function registerKey(k){
+      if(!k) return;
+      const label = k.label;
+      if(label === "Space") typed.value += " ";
+      else if(label === "Enter") typed.value += "\n";
+      else typed.value += label;
+      lastKeyPressed = {row:k.row,col:k.col};
+      setTimeout(()=>{ lastKeyPressed = null }, 120);
+    }
+
+    function onResults(results){
+      fitCanvas();
+      ctx.clearRect(0,0,canvas.width, canvas.height);
+      drawKeyboard();
+
+      // draw camera feed faint overlay for user
+      ctx.save();
+      ctx.globalAlpha = 0.08;
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.restore();
+
+      if(results.multiHandLandmarks && results.multiHandLandmarks.length > 0){
+        const landmarks = results.multiHandLandmarks[0];
+        // draw landmarks for debugging
+        drawConnectors(ctx, landmarks, HAND_CONNECTIONS, {color: '#ffffff', lineWidth:1});
+        drawLandmarks(ctx, landmarks, {color:'#ffb703', lineWidth:1});
+
+        // index finger tip landmark index 8
+        const idx = landmarks[8];
+        let ix = idx.x * canvas.width;
+        let iy = idx.y * canvas.height;
+
+        // If video is mirrored, mirror coords to match canvas appearance
+        const mirrored = mirrorToggle.checked;
+        if(mirrored){
+          ix = canvas.width - ix;
+        }
+
+        // draw pointer
+        ctx.beginPath();
+        ctx.fillStyle = 'rgba(255,255,255,0.9)';
+        ctx.arc(ix, iy, 10, 0, Math.PI*2);
+        ctx.fill();
+
+        const now = performance.now();
+        if(lastIndexY !== null && lastTs !== null){
+          const dt = Math.max(1, now - lastTs);
+          const dy = iy - lastIndexY; // positive = moving down
+          const velocity = (dy / dt) * 1000; // px per second approx
+          const velThreshold = parseFloat(velRange.value) * 60; // tuned multiplier
+
+          // detect a downward quick motion and that finger is inside keyboard area
+          const isInside = (ix >= keyboardArea.x && ix <= keyboardArea.x + keyboardArea.w && iy >= keyboardArea.y && iy <= keyboardArea.y + keyboardArea.h);
+          if(velocity > velThreshold && isInside && (now - lastTapTs) > cooldown){
+            // it's a tap
+            const key = getKeyAt(ix, iy);
+            if(key){
+              key.row = key.row; key.col = key.col; // ensure properties exist
+              registerKey(key);
+              lastTapTs = now;
+            }
+          }
+
+        }
+        lastIndexY = iy;
+        lastTs = now;
+      } else {
+        // no hand detected
+        lastIndexY = null;
+        lastTs = null;
+      }
+    }
+
+    function startCamera(){
+      if(camera) return;
+      // initialize MediaPipe Hands
+      hands = new Hands({
+        locateFile: (file) => {
+          return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+        }
+      });
+      hands.setOptions({
+        maxNumHands: 1,
+        modelComplexity: 1,
+        minDetectionConfidence: 0.6,
+        minTrackingConfidence: 0.6
+      });
+      hands.onResults(onResults);
+
+      camera = new Camera(video, {
+        onFrame: async () => {
+          await hands.send({image: video});
+        },
+        width: 1280,
+        height: 720
+      });
+      camera.start();
+      startBtn.disabled = true;
+      stopBtn.disabled = false;
+    }
+
+    function stopCamera(){
+      if(camera){
+        camera.stop();
+        camera = null;
+      }
+      if(hands){
+        hands.close();
+        hands = null;
+      }
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+    }
+
+    // calibration: click-drag on overlay to set keyboardArea
+    canvas.addEventListener('pointerdown', (ev)=>{
+      if(!isCalibrating) return;
+      calStart = {x:ev.offsetX, y:ev.offsetY};
+    });
+    canvas.addEventListener('pointerup', (ev)=>{
+      if(!isCalibrating || !calStart) return;
+      const x1 = Math.min(calStart.x, ev.offsetX);
+      const x2 = Math.max(calStart.x, ev.offsetX);
+      const y1 = Math.min(calStart.y, ev.offsetY);
+      const y2 = Math.max(calStart.y, ev.offsetY);
+      keyboardArea = {x:x1, y:y1, w:x2-x1, h:y2-y1};
+      isCalibrating = false;
+      calStart = null;
+      calBtn.textContent = "Calibrate Keyboard Area";
+    });
+
+    calBtn.addEventListener('click', ()=>{
+      isCalibrating = !isCalibrating;
+      calBtn.textContent = isCalibrating ? "Click-drag on video to set area..." : "Calibrate Keyboard Area";
+    });
+
+    resetCalBtn.addEventListener('click', ()=>{
+      keyboardArea = null;
+    });
+
+    startBtn.addEventListener('click', startCamera);
+    stopBtn.addEventListener('click', stopCamera);
+
+    copyBtn.addEventListener('click', async ()=>{
+      try{
+        await navigator.clipboard.writeText(typed.value);
+        copyBtn.textContent = "Copied!";
+        setTimeout(()=>copyBtn.textContent = "Copy to clipboard", 1000);
+      } catch(e){
+        alert("Copy failed: " + e);
+      }
+    });
+
+    clearBtn.addEventListener('click', ()=>{ typed.value = ""; });
+
+    layoutSelect.addEventListener('change', ()=>{ /* redraw next frame */ });
+
+    // simple save/load localStorage
+    document.getElementById('btn-save').addEventListener('click', ()=>{ localStorage.setItem('camkb_text', typed.value); alert('Saved'); });
+    document.getElementById('btn-load').addEventListener('click', ()=>{ typed.value = localStorage.getItem('camkb_text') || ""; });
+
+    // download page (single-file) -- just trigger a blob download of current HTML (this file itself)
+    document.getElementById('btn-download').addEventListener('click', ()=>{
+      const doctype = "<!doctype html>\n";
+      const html = document.documentElement.outerHTML;
+      const blob = new Blob([doctype+html], {type:'text/html'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'cam-invisible-keyboard.html';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    // initial sizing and defaults
+    fitCanvas();
+    keyboardArea = null; // will default when drawing
+    // draw an initial guide
+    ctx.fillStyle = 'rgba(255,255,255,0.02)';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+  })();
+  </script>
 </body>
 </html>
