@@ -3,67 +3,47 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Camera Invisible Keyboard — Prototype (Gestures & Multi-finger)</title>
+  <title>Camera Invisible Keyboard — Off-keyboard Right-hand Mouse Control</title>
   <style>
     :root{
-      --bg:#0b1220;
+      --bg:#071020;
       --panel:#0f1724;
-      --accent:#22c1c3;
       --muted:#94a3b8;
       --white:#e6eef6;
     }
-    html,body{height:100%;margin:0;font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial; background:linear-gradient(180deg,var(--bg),#071020); color:var(--white)}
-    .app{
-      max-width:1100px;margin:18px auto;padding:18px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
-      border-radius:12px;box-shadow:0 6px 30px rgba(2,6,23,0.6);
-    }
+    html,body{height:100%;margin:0;font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial; background:linear-gradient(180deg,var(--bg),#020618); color:var(--white)}
+    .app{max-width:1200px;margin:10px auto;padding:12px;background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.01)); border-radius:10px;box-shadow:0 6px 30px rgba(0,0,0,0.6)}
     header{display:flex;align-items:center;gap:12px}
-    h1{margin:0;font-size:18px}
-    .controls{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
-    button, select{
-      background:var(--panel);color:var(--white);border:1px solid rgba(255,255,255,0.04);padding:8px 12px;border-radius:8px;cursor:pointer;
-    }
+    h1{margin:0;font-size:16px}
+    .controls{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+    button, select, label{background:var(--panel);color:var(--white);border:1px solid rgba(255,255,255,0.03);padding:7px 10px;border-radius:8px;cursor:pointer}
     button.small{padding:6px 8px;font-size:13px}
-    .stage{display:flex;gap:16px;margin-top:16px;align-items:flex-start}
-    .video-wrap{position:relative;flex:1;min-width:320px;max-width:800px;background:#000;border-radius:10px;overflow:hidden;border:1px solid rgba(255,255,255,0.03)}
-    video{display:block; width:100%; height:auto; transform:scaleX(-1)} /* mirrored */
-    canvas{position:absolute;left:0;top:0;pointer-events:none; width:100%; height:100%}
-    .side{width:320px;min-width:220px}
-    .textbox{width:100%;height:150px;background:#071228;border-radius:8px;padding:10px;color:var(--white);border:1px solid rgba(255,255,255,0.03);resize:vertical; font-size:15px}
+    .stage{display:flex;gap:12px;margin-top:12px;align-items:flex-start}
+    .video-wrap{position:relative;flex:1;min-width:480px;max-width:1200px;height:720px;background:#000;border-radius:8px;overflow:hidden;border:1px solid rgba(255,255,255,0.03)}
+    video{display:block;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+    canvas{position:absolute;left:0;top:0;pointer-events:none;width:100%;height:100%}
+    .side{width:340px;min-width:240px}
+    .textbox{width:100%;height:220px;background:#071228;border-radius:8px;padding:10px;color:var(--white);border:1px solid rgba(255,255,255,0.03);resize:vertical;font-size:15px}
     .hint{color:var(--muted);font-size:13px;margin-top:8px}
-    .row{display:flex;gap:6px;margin-top:8px}
+    .row{display:flex;gap:6px;margin-top:8px;align-items:center}
     .kbd-mode{display:flex;gap:8px;align-items:center}
     .key-count{font-size:13px;color:var(--muted)}
-    footer{margin-top:12px;color:var(--muted);font-size:13px}
-    .toast {
-      position: absolute;
-      top: 12px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(0,0,0,0.6);
-      color: #fff;
-      padding: 8px 12px;
-      border-radius: 8px;
-      font-size: 13px;
-      pointer-events: none;
-      opacity: 0;
-      transition: opacity .18s;
-    }
-    .toast.show { opacity: 1; }
-    .legend { font-size:12px;color:var(--muted); margin-top:8px; display:flex; gap:8px; flex-wrap:wrap }
-    .legend .dot { width:12px;height:12px;border-radius:50%;display:inline-block; margin-right:6px; vertical-align:middle }
+    footer{margin-top:10px;color:var(--muted);font-size:13px}
+    .toast{position:absolute;top:12px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.6);color:#fff;padding:8px 12px;border-radius:8px;font-size:13px;pointer-events:none;opacity:0;transition:opacity .18s}
+    .toast.show{opacity:1}
+    .cursor{position:absolute;width:18px;height:18px;border-radius:50%;pointer-events:none;transform:translate(-50%,-50%);z-index:40;box-shadow:0 0 10px rgba(0,0,0,0.6), inset 0 0 6px rgba(255,255,255,0.02);border:2px solid rgba(255,255,255,0.85);background: rgba(255,255,255,0.03)}
+    .cursor.down{background: rgba(255,255,255,0.18);transform:translate(-50%,-50%) scale(0.92)}
+    .legend{font-size:12px;color:var(--muted);margin-top:8px;display:flex;gap:8px;flex-wrap:wrap}
+    .legend .dot{width:12px;height:12px;border-radius:50%;display:inline-block;margin-right:6px;vertical-align:middle}
+    .option {display:flex;align-items:center;gap:8px}
   </style>
 </head>
 <body>
   <div class="app">
     <header>
-      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" style="opacity:.95">
-        <path d="M3 12h18" stroke="#22c1c3" stroke-width="2" stroke-linecap="round"></path>
-        <path d="M8 5h8" stroke="#94a3b8" stroke-width="1.6" stroke-linecap="round"></path>
-      </svg>
       <div>
-        <h1>Camera Invisible Keyboard — Gestures & Multi-finger</h1>
-        <div style="color:var(--muted);font-size:13px">Pinch thumb+index to cycle keyboard layouts. Index types letters, middle deletes (backspace), thumb inserts Enter. Works per-hand (left/orange, right/blue).</div>
+        <h1>Invisible Outline Keyboard — Off-keyboard Right-hand Mouse Control</h1>
+        <div style="color:var(--muted);font-size:13px">Right hand controls "global" page mouse when it is off the keyboard area. Pinch = mouse press/drag. (See note about OS cursor limitations below.)</div>
       </div>
     </header>
 
@@ -71,9 +51,12 @@
       <button id="btn-start" class="small">Start Camera</button>
       <button id="btn-stop" class="small" disabled>Stop</button>
       <button id="btn-clear" class="small">Clear Text</button>
-      <button id="btn-copy" class="small">Copy to clipboard</button>
+      <button id="btn-copy" class="small">Copy</button>
       <label style="display:flex;align-items:center;gap:6px;color:var(--muted);margin-left:6px">
         <input id="mirror" type="checkbox" checked /> Mirror
+      </label>
+      <label class="option" title="Allow right hand outside keyboard to control the page mouse">
+        <input id="offMouse" type="checkbox" /> Enable off-keyboard mouse (right hand)
       </label>
       <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
         <label style="color:var(--muted)">Tap velocity</label>
@@ -86,28 +69,24 @@
         <video id="video" autoplay muted playsinline></video>
         <canvas id="overlay"></canvas>
         <div id="toast" class="toast" aria-hidden="true"></div>
+        <div id="cursor" class="cursor" style="left:50%;top:50%"></div>
       </div>
 
       <div class="side">
         <div>
           <textarea id="typed" class="textbox" placeholder="Typed text will appear here..." readonly></textarea>
-          <div class="hint">
-            Tip: pinch (touch) your thumb to your index finger to switch keyboard layout. Use:
-            index finger = type hovered key,
-            middle finger = backspace,
-            thumb = Enter.
-          </div>
+          <div class="hint">Index = type hovered key / move mouse. Middle = backspace. Thumb = Enter. Right-hand outside keyboard = control page mouse (pinch to click/drag). Pinch both = cycle layout.</div>
 
           <div class="legend">
-            <div><span class="dot" style="background:#ff8a00"></span> Left hand (orange)</div>
-            <div><span class="dot" style="background:#2aa4ff"></span> Right hand (blue)</div>
+            <div><span class="dot" style="background:#ff8a00"></span> Left (orange)</div>
+            <div><span class="dot" style="background:#2aa4ff"></span> Right (blue)</div>
           </div>
 
           <div class="row" style="margin-top:8px">
             <div class="kbd-mode">
               <label class="key-count">Layout:</label>
               <select id="layout">
-                <option value="qwerty">QWERTY (default)</option>
+                <option value="qwerty">QWERTY</option>
                 <option value="numeric">Numeric</option>
                 <option value="symbols">Symbols</option>
               </select>
@@ -115,14 +94,9 @@
           </div>
 
           <div class="row">
-            <button id="btn-calibrate">Calibrate Keyboard Area</button>
-            <button id="btn-reset-cal">Reset Area</button>
-          </div>
-
-          <div class="row" style="margin-top:10px">
-            <button id="btn-save" title="Save current text to localStorage">Save text</button>
-            <button id="btn-load" title="Load saved text from localStorage">Load saved</button>
-            <button id="btn-download" title="Download index.html and run locally">Download (single-file)</button>
+            <button id="btn-save">Save</button>
+            <button id="btn-load">Load</button>
+            <button id="btn-download">Download</button>
           </div>
 
         </div>
@@ -130,23 +104,26 @@
     </div>
 
     <footer>
-      Prototype: gesture heuristics only. For production, use extra sensors or ML models to increase robustness.
+      Note: Browsers do not let web pages move the operating system mouse cursor. This implementation maps your right-hand position to the page/window coordinates and dispatches synthetic mouse events (mousemove/mousedown/mouseup/click) so the page behaves as if you moved the mouse. To control the OS cursor outside the browser page you would need a small native helper or a browser extension with native messaging — I can help build that if you want.
     </footer>
   </div>
 
-  <!-- MediaPipe scripts -->
+  <!-- MediaPipe -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
 
   <script>
-  // Finger indices from MediaPipe landmarks
-  const TIP = { THUMB:4, INDEX:8, MIDDLE:12, RING:16, PINKY:20 };
+  // Tip indices
+  const TIP = { THUMB:4, INDEX:8, MIDDLE:12 };
 
   (function(){
     const video = document.getElementById('video');
     const canvas = document.getElementById('overlay');
     const ctx = canvas.getContext('2d');
+    const cursorEl = document.getElementById('cursor');
+    const toastEl = document.getElementById('toast');
+
     const startBtn = document.getElementById('btn-start');
     const stopBtn = document.getElementById('btn-stop');
     const copyBtn = document.getElementById('btn-copy');
@@ -155,42 +132,13 @@
     const velRange = document.getElementById('vel');
     const mirrorToggle = document.getElementById('mirror');
     const layoutSelect = document.getElementById('layout');
-    const calBtn = document.getElementById('btn-calibrate');
-    const resetCalBtn = document.getElementById('btn-reset-cal');
-    const toastEl = document.getElementById('toast');
+    const offMouseCheckbox = document.getElementById('offMouse');
 
     let camera = null;
     let hands = null;
-    let videoWidth = 640, videoHeight = 480;
     let keyboardArea = null;
-    let isCalibrating = false;
-    let calStart = null;
+    let pinchBothLast = 0;
 
-    // Colors per handedness
-    const COLORS = {
-      Left: { fill: '#ff8a00', stroke: '#ffb480' },
-      Right: { fill: '#2aa4ff', stroke: '#8fd7ff' }
-    };
-
-    // Per-hand state includes per-finger substate
-    const handState = {
-      Left: makeHandState(),
-      Right: makeHandState()
-    };
-
-    function makeHandState(){
-      return {
-        // finger states keyed by 'thumb','index','middle'
-        fingers: {
-          thumb: { lastY:null, lastTs:null, lastHoveredKey:null, lastTapTs:0 },
-          index: { lastY:null, lastTs:null, lastHoveredKey:null, lastTapTs:0 },
-          middle:{ lastY:null, lastTs:null, lastHoveredKey:null, lastTapTs:0 }
-        },
-        lastPinchTs: 0
-      };
-    }
-
-    // Keyboard layouts
     const layouts = {
       qwerty: [
         "qwertyuiop".split(''),
@@ -206,34 +154,59 @@
       symbols: [
         ["!","@","#","$","%","^","&","*","(",")"],
         ["_","+","{","}","[","]","|",";",":"],
-        ["'",'"',",",".","?","/","\\","<",">"],
+        ["'",'"',",",".","?","/","\\"]
       ]
     };
-    const layoutKeys = Object.keys(layouts);
-    let layoutIndex = 0; // sync with select
+
+    const COLORS = { Left:{fill:'#ff8a00',stroke:'#ffb480'}, Right:{fill:'#2aa4ff',stroke:'#8fd7ff'} };
+    function makeHandState(){ return {
+      fingers: {
+        thumb:{lastY:null,lastTs:null,lastHoveredKey:null,lastTapTs:0},
+        index:{lastY:null,lastTs:null,lastHoveredKey:null,lastTapTs:0},
+        middle:{lastY:null,lastTs:null,lastHoveredKey:null,lastTapTs:0}
+      },
+      isPinched:false
+    }; }
+    const handState = { Left: makeHandState(), Right: makeHandState() };
+
+    // mouse state
+    let mouseDown = false;
+    let mouseDownTarget = null;
+    let lastPointer = {x: canvas.width/2, y: canvas.height/2};
+    let pointerHand = null;
 
     function fitCanvas(){
       const wrap = document.getElementById('videoWrap');
       canvas.width = wrap.clientWidth;
       canvas.height = wrap.clientHeight;
-      videoWidth = canvas.width; videoHeight = canvas.height;
+      // keyboard occupies bottom 45% of canvas by default; top area is "desktop/mouse control" region
+      keyboardArea = { x: canvas.width * 0.02, y: canvas.height * 0.55, w: canvas.width * 0.96, h: canvas.height * 0.43 };
     }
     window.addEventListener('resize', fitCanvas);
+    fitCanvas();
+
+    function roundRect(ctx, x, y, w, h, r, fill, stroke){
+      if(typeof r === 'undefined') r = 5;
+      if(typeof r === 'number') r = {tl:r,tr:r,br:r,bl:r};
+      ctx.beginPath();
+      ctx.moveTo(x + r.tl, y);
+      ctx.lineTo(x + w - r.tr, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r.tr);
+      ctx.lineTo(x + w, y + h - r.br);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r.br, y + h);
+      ctx.lineTo(x + r.bl, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r.bl);
+      ctx.lineTo(x, y + r.tl);
+      ctx.quadraticCurveTo(x, y, x + r.tl, y);
+      ctx.closePath();
+      if(fill) ctx.fill();
+      if(stroke) ctx.stroke();
+    }
 
     function drawKeyboard(){
-      if(!keyboardArea){
-        keyboardArea = {
-          x: canvas.width * 0.05,
-          y: canvas.height * 0.60,
-          w: canvas.width * 0.9,
-          h: canvas.height * 0.35
-        };
-      }
       const L = layouts[layoutSelect.value] || layouts.qwerty;
       ctx.save();
-      ctx.fillStyle = 'rgba(10,12,16,0.5)';
-      ctx.fillRect(keyboardArea.x, keyboardArea.y, keyboardArea.w, keyboardArea.h);
-
+      // keyboard outlines only
       const rows = L.length;
       const rowH = keyboardArea.h / rows;
       for(let r=0;r<rows;r++){
@@ -247,72 +220,17 @@
           const kw = (r === rows-1 && row[0] === "Space") ? keyboardArea.w - padding*2 : keyW;
           const kh = rowH - padding*1.5;
           const label = row[c];
-
-          // check hover highlights from any finger/hand and composite colors
-          let composite = null;
-          for(const hname of ['Left','Right']){
-            const hs = handState[hname];
-            for(const fname of ['index','middle','thumb']){
-              const f = hs.fingers[fname];
-              if(f && f.lastHoveredKey && f.lastHoveredKey.row===r && f.lastHoveredKey.col===c){
-                // give priority index > middle > thumb in visual mixing
-                const base = COLORS[hname].fill;
-                composite = composite ? composite : base;
-                // Don't break - allow both hands to contribute; we keep first found to keep visuals simple
-                if(fname === 'index'){ break; }
-              }
-            }
-            if(composite && composite === COLORS.Left.fill) break;
-          }
-
-          if(composite){
-            ctx.fillStyle = hexToRgba(composite, 0.92);
-          } else {
-            ctx.fillStyle = 'rgba(30,41,59,0.88)';
-          }
-
-          ctx.strokeStyle = "rgba(255,255,255,0.03)";
-          roundRect(ctx, kx, ky, kw, kh, 8, true, true);
-
-          ctx.fillStyle = '#e6eef6';
-          ctx.font = `${Math.max(12, kh*0.42)}px system-ui`;
+          ctx.lineWidth = 1.2;
+          ctx.strokeStyle = 'rgba(230,238,246,0.22)';
+          roundRect(ctx, kx, ky, kw, kh, 8, false, true);
+          ctx.fillStyle = 'rgba(230,238,246,0.18)';
+          ctx.font = `${Math.max(12, kh*0.4)}px system-ui`;
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
-          const tx = kx + kw/2;
-          const ty = ky + kh/2;
-          ctx.fillText(label, tx, ty);
+          ctx.fillText(label, kx + kw/2, ky + kh/2);
         }
       }
-
-      ctx.strokeStyle = 'rgba(255,255,255,0.04)';
-      ctx.strokeRect(keyboardArea.x, keyboardArea.y, keyboardArea.w, keyboardArea.h);
       ctx.restore();
-    }
-
-    function roundRect(ctx, x, y, w, h, r, fill, stroke) {
-      if (typeof r === 'undefined') r = 5;
-      if (typeof r === 'number') r = {tl: r, tr: r, br: r, bl: r};
-      ctx.beginPath();
-      ctx.moveTo(x + r.tl, y);
-      ctx.lineTo(x + w - r.tr, y);
-      ctx.quadraticCurveTo(x + w, y, x + w, y + r.tr);
-      ctx.lineTo(x + w, y + h - r.br);
-      ctx.quadraticCurveTo(x + w, y + h, x + w - r.br, y + h);
-      ctx.lineTo(x + r.bl, y + h);
-      ctx.quadraticCurveTo(x, y + h, x, y + h - r.bl);
-      ctx.lineTo(x, y + r.tl);
-      ctx.quadraticCurveTo(x, y, x + r.tl, y);
-      ctx.closePath();
-      if (fill) ctx.fill();
-      if (stroke) ctx.stroke();
-    }
-
-    function hexToRgba(hex, alpha){
-      const c = hex.replace('#','');
-      const r = parseInt(c.substring(0,2),16);
-      const g = parseInt(c.substring(2,4),16);
-      const b = parseInt(c.substring(4,6),16);
-      return `rgba(${r},${g},${b},${alpha})`;
     }
 
     function getKeyAt(x,y){
@@ -320,7 +238,7 @@
       const L = layouts[layoutSelect.value] || layouts.qwerty;
       const relX = x - keyboardArea.x;
       const relY = y - keyboardArea.y;
-      if(relX<0 || relY<0 || relX>keyboardArea.w || relY>keyboardArea.h) return null;
+      if(relX < 0 || relY < 0 || relX > keyboardArea.w || relY > keyboardArea.h) return null;
       const rows = L.length;
       const rowH = keyboardArea.h / rows;
       const r = Math.floor(relY / rowH);
@@ -333,259 +251,281 @@
         const ky = r*rowH + padding/1.5;
         const kw = (r === rows-1 && row[0] === "Space") ? keyboardArea.w - padding*2 : keyW;
         const kh = rowH - padding*1.5;
-        if(relX >= kx && relX <= kx+kw && relY >= ky && relY <= ky+kh){
-          return {row:r,col:c,label:row[c],keyX:keyboardArea.x+kx,keyY:keyboardArea.y+ky,keyW:kw,keyH:kh};
+        if(relX >= kx && relX <= kx + kw && relY >= ky && relY <= ky + kh){
+          return {row:r,col:c,label:row[c],keyX:keyboardArea.x + kx, keyY:keyboardArea.y + ky, keyW:kw, keyH:kh};
         }
       }
       return null;
     }
 
-    function registerKey(k){
-      if(!k) return;
-      const label = k.label;
-      if(label === "Space") typed.value += " ";
-      else if(label === "Enter") typed.value += "\n";
-      else typed.value += label;
+    function registerKey(k){ if(!k) return; const label = k.label; if(label === "Space") typed.value += " "; else if(label === "Enter") typed.value += "\n"; else typed.value += label; pulseCursor(); }
+    function doBackspace(){ typed.value = typed.value.slice(0,-1); pulseCursor(); }
+    function pulseCursor(){ cursorEl.classList.add('down'); setTimeout(()=>cursorEl.classList.remove('down'), 140); }
+
+    function showToast(msg, ms=900){ toastEl.textContent = msg; toastEl.classList.add('show'); toastEl.setAttribute('aria-hidden','false'); clearTimeout(toastEl._t); toastEl._t = setTimeout(()=>{ toastEl.classList.remove('show'); toastEl.setAttribute('aria-hidden','true'); }, ms); }
+
+    // synthetic events helpers
+    function dispatchPageMouseEvent(type, clientX, clientY, targetOverride){
+      const target = targetOverride || document.elementFromPoint(clientX, clientY);
+      if(!target) return null;
+      const ev = new MouseEvent(type, {bubbles:true,cancelable:true,view:window,clientX,clientY,button:0});
+      target.dispatchEvent(ev);
+      return target;
     }
 
-    function doBackspace(){
-      typed.value = typed.value.slice(0, -1);
+    // Map canvas coords (indexPos) to page/window client coordinates for "global-like" control.
+    // We map relative to the full window size so right-hand movement over the camera view translates to cursor movement across the page window.
+    // This only affects the webpage (document.elementFromPoint) — it cannot move the OS cursor.
+    function mapCanvasToWindowClient(xCanvas, yCanvas){
+      // normalized canvas coords
+      const nx = xCanvas / canvas.width;
+      const ny = yCanvas / canvas.height;
+      // choose mapping: full window.innerWidth/innerHeight
+      const clientX = Math.round(nx * window.innerWidth);
+      const clientY = Math.round(ny * window.innerHeight);
+      return { clientX, clientY };
     }
 
-    function showToast(msg, ms=900){
-      toastEl.textContent = msg;
-      toastEl.classList.add('show');
-      toastEl.setAttribute('aria-hidden','false');
-      clearTimeout(toastEl._t);
-      toastEl._t = setTimeout(()=>{ toastEl.classList.remove('show'); toastEl.setAttribute('aria-hidden','true'); }, ms);
-    }
+    // Called each frame to update synthetic pointer & mouse interactions
+    function updatePointerAndMouse(now){
+      // move synthetic cursor element to canvas-local coordinates (visual)
+      const x = Math.max(0, Math.min(canvas.width, lastPointer.x));
+      const y = Math.max(0, Math.min(canvas.height, lastPointer.y));
+      cursorEl.style.left = x + 'px';
+      cursorEl.style.top = y + 'px';
 
-    // Gesture: pinch thumb+index to cycle layout
-    function handlePinchCycle(handed, thumbPos, indexPos, handBoxSize){
-      const state = handState[handed];
-      if(!state) return;
-      // distance normalized by handBoxSize (approximate scaled)
-      const dx = thumbPos.x - indexPos.x;
-      const dy = thumbPos.y - indexPos.y;
-      const dist = Math.hypot(dx,dy);
-      const thresh = Math.max(28, handBoxSize * 0.12); // flexible threshold
-      const now = performance.now();
-      if(dist < thresh && (now - state.lastPinchTs) > 600){
-        // cycle layout
-        layoutIndex = (layoutIndex + 1) % layoutKeys.length;
-        layoutSelect.value = layoutKeys[layoutIndex];
-        showToast("Layout: " + layoutSelect.value);
-        state.lastPinchTs = now;
+      const offMouseEnabled = offMouseCheckbox.checked;
+
+      // if right-hand is controlling global mouse (we set pointerHand), and pointer is outside keyboard area and offMouseEnabled,
+      // map to global page coordinates and dispatch events there.
+      if(pointerHand === 'Right' && offMouseEnabled && !getKeyAt(lastPointer.x, lastPointer.y)){
+        const { clientX, clientY } = mapCanvasToWindowClient(lastPointer.x, lastPointer.y);
+
+        // if pinch (mouseDown) started on this off-keyboard mode, dispatch mousedown/move/up with mapped coordinates
+        const pointerPinched = handState.Right.isPinched;
+
+        if(pointerPinched && !mouseDown){
+          mouseDown = true;
+          mouseDownTarget = dispatchPageMouseEvent('mousedown', clientX, clientY);
+          cursorEl.classList.add('down');
+        }
+        if(pointerPinched && mouseDown){
+          dispatchPageMouseEvent('mousemove', clientX, clientY, mouseDownTarget);
+        }
+        if(!pointerPinched && mouseDown){
+          dispatchPageMouseEvent('mouseup', clientX, clientY, mouseDownTarget);
+          dispatchPageMouseEvent('click', clientX, clientY, mouseDownTarget);
+          mouseDown = false; mouseDownTarget = null; cursorEl.classList.remove('down');
+        }
+      } else {
+        // If not in off-keyboard global control, fall back to canvas-local synthetic events (within page area near canvas)
+        const clientPoint = clientFromCanvas(lastPointer.x, lastPointer.y);
+        const pointerPinched = (pointerHand && handState[pointerHand]) ? handState[pointerHand].isPinched : false;
+
+        if(pointerPinched && !mouseDown){
+          mouseDown = true;
+          mouseDownTarget = dispatchPageMouseEvent('mousedown', clientPoint.clientX, clientPoint.clientY);
+          cursorEl.classList.add('down');
+        }
+        if(pointerPinched && mouseDown){
+          dispatchPageMouseEvent('mousemove', clientPoint.clientX, clientPoint.clientY, mouseDownTarget);
+        }
+        if(!pointerPinched && mouseDown){
+          dispatchPageMouseEvent('mouseup', clientPoint.clientX, clientPoint.clientY, mouseDownTarget);
+          dispatchPageMouseEvent('click', clientPoint.clientX, clientPoint.clientY, mouseDownTarget);
+          mouseDown = false; mouseDownTarget = null; cursorEl.classList.remove('down');
+        }
       }
     }
 
-    // Main results handler
+    function clientFromCanvas(xCanvas, yCanvas){
+      const rect = canvas.getBoundingClientRect();
+      return { clientX: rect.left + xCanvas, clientY: rect.top + yCanvas };
+    }
+
+    // Process MediaPipe results
     function onResults(results){
       fitCanvas();
-      ctx.clearRect(0,0,canvas.width, canvas.height);
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+
+      // faint overlay for contrast, then keyboard outlines
+      ctx.save(); ctx.globalAlpha = 0.06; ctx.fillStyle = '#000'; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.restore();
       drawKeyboard();
 
-      // faint camera overlay
-      ctx.save();
-      ctx.globalAlpha = 0.06;
-      ctx.fillStyle = '#000';
-      ctx.fillRect(0,0,canvas.width,canvas.height);
-      ctx.restore();
+      // default pointer fallback: lastPointer stays where it was
+      let pointerX = lastPointer.x, pointerY = lastPointer.y;
+      pointerHand = null;
 
-      if(!results.multiHandLandmarks || results.multiHandLandmarks.length === 0){
-        // no hand - we keep state but return
-        return;
-      }
-
-      // Process up to two hands; use MediaPipe handedness if available
-      for(let i=0;i<results.multiHandLandmarks.length;i++){
-        const landmarks = results.multiHandLandmarks[i];
-        const handed = (results.multiHandedness && results.multiHandedness[i] && results.multiHandedness[i].label) ? results.multiHandedness[i].label : (i === 0 ? 'Right' : 'Left');
-        const state = handState[handed] || (handState[handed] = makeHandState());
-
-        // compute approximate hand bounding box size to normalize pinch threshold
-        let minX=1,minY=1,maxX=0,maxY=0;
-        for(const p of landmarks){ minX=Math.min(minX,p.x); minY=Math.min(minY,p.y); maxX=Math.max(maxX,p.x); maxY=Math.max(maxY,p.y); }
-        const handBoxSize = Math.max((maxX-minX)*canvas.width, (maxY-minY)*canvas.height);
-
-        // per-finger positions
-        function mkPos(landmarkIndex){
-          let x = landmarks[landmarkIndex].x * canvas.width;
-          let y = landmarks[landmarkIndex].y * canvas.height;
-          if(mirrorToggle.checked) x = canvas.width - x;
-          return {x,y};
+      if(results.multiHandLandmarks && results.multiHandLandmarks.length){
+        const now = performance.now();
+        const handsPresent = [];
+        for(let i=0;i<results.multiHandLandmarks.length;i++){
+          const landmarks = results.multiHandLandmarks[i];
+          const handed = (results.multiHandedness && results.multiHandedness[i] && results.multiHandedness[i].label) ? results.multiHandedness[i].label : (i===0 ? 'Right' : 'Left');
+          handsPresent.push({landmarks, handed});
         }
-        const thumbPos = mkPos(TIP.THUMB);
-        const indexPos = mkPos(TIP.INDEX);
-        const middlePos = mkPos(TIP.MIDDLE);
 
-        // draw hand landmarks & colored pointers
-        const col = COLORS[handed] ? COLORS[handed] : { fill:'#fff', stroke:'#fff' };
-        drawConnectors(ctx, landmarks, HAND_CONNECTIONS, {color: col.stroke, lineWidth:2});
-        drawLandmarks(ctx, landmarks, {color: col.fill, lineWidth:1, radius:2});
+        // prefer right hand for pointer control
+        const chosen = handsPresent.find(h=>h.handed==='Right') || handsPresent[0];
 
-        // Draw finger tip markers larger for ease of seeing
-        ctx.beginPath(); ctx.fillStyle = hexToRgba(col.fill,0.98); ctx.arc(indexPos.x, indexPos.y, 9, 0, Math.PI*2); ctx.fill();
-        ctx.beginPath(); ctx.fillStyle = hexToRgba(col.fill,0.6); ctx.arc(middlePos.x, middlePos.y, 8, 0, Math.PI*2); ctx.fill();
-        ctx.beginPath(); ctx.fillStyle = hexToRgba(col.fill,0.72); ctx.arc(thumbPos.x, thumbPos.y, 8, 0, Math.PI*2); ctx.fill();
+        for(const hp of handsPresent){
+          const landmarks = hp.landmarks;
+          const handed = hp.handed;
+          const state = handState[handed];
 
-        // Update hovered keys for each finger
-        const hoveredIndex = getKeyAt(indexPos.x, indexPos.y);
-        const hoveredMiddle = getKeyAt(middlePos.x, middlePos.y);
-        const hoveredThumb = getKeyAt(thumbPos.x, thumbPos.y);
+          // compute bounding size for pinch threshold
+          let minX=1,minY=1,maxX=0,maxY=0;
+          for(const p of landmarks){ minX = Math.min(minX, p.x); minY = Math.min(minY, p.y); maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y); }
+          const handBox = Math.max((maxX-minX)*canvas.width, (maxY-minY)*canvas.height);
 
-        // helper to update finger state and detect major movement
-        function processFinger(fingerName, pos, hovered, tipIndex){
-          const f = state.fingers[fingerName];
-          const now = performance.now();
+          function pos(i){ let x = landmarks[i].x * canvas.width; let y = landmarks[i].y * canvas.height; if(mirrorToggle.checked) x = canvas.width - x; return {x,y}; }
+          const thumbPos = pos(TIP.THUMB);
+          const indexPos = pos(TIP.INDEX);
+          const middlePos = pos(TIP.MIDDLE);
 
-          // store hovered key if present
-          if(hovered){
-            f.lastHoveredKey = { row: hovered.row, col: hovered.col, label: hovered.label, keyX: hovered.keyX, keyY: hovered.keyY, keyW: hovered.keyW, keyH: hovered.keyH };
+          // draw hand, colored
+          const col = COLORS[handed] || {fill:'#fff',stroke:'#fff'};
+          drawConnectors(ctx, landmarks, HAND_CONNECTIONS, {color: col.stroke, lineWidth:2});
+          drawLandmarks(ctx, landmarks, {color: col.fill, lineWidth:1, radius:2});
+          ctx.beginPath(); ctx.fillStyle = hexToRgba(col.fill, 0.96); ctx.arc(indexPos.x, indexPos.y, 9, 0, Math.PI*2); ctx.fill();
+          ctx.beginPath(); ctx.fillStyle = hexToRgba(col.fill, 0.6); ctx.arc(middlePos.x, middlePos.y, 8, 0, Math.PI*2); ctx.fill();
+          ctx.beginPath(); ctx.fillStyle = hexToRgba(col.fill, 0.72); ctx.arc(thumbPos.x, thumbPos.y, 8, 0, Math.PI*2); ctx.fill();
+
+          // update hovered keys
+          const hoveredIdx = getKeyAt(indexPos.x, indexPos.y);
+          const hoveredMid = getKeyAt(middlePos.x, middlePos.y);
+          const hoveredThumb = getKeyAt(thumbPos.x, thumbPos.y);
+          if(hoveredIdx) state.fingers.index.lastHoveredKey = {...hoveredIdx};
+          if(hoveredMid) state.fingers.middle.lastHoveredKey = {...hoveredMid};
+          if(hoveredThumb) state.fingers.thumb.lastHoveredKey = {...hoveredThumb};
+
+          // highlight hovered key stroke
+          if(hoveredIdx){
+            ctx.save();
+            ctx.lineWidth = 2.4;
+            ctx.strokeStyle = hexToRgba(col.fill, 0.98);
+            roundRect(ctx, hoveredIdx.keyX, hoveredIdx.keyY, hoveredIdx.keyW, hoveredIdx.keyH, 8, false, true);
+            ctx.restore();
           }
 
-          // compute velocity in Y
-          if(f.lastY !== null && f.lastTs !== null){
-            const dt = Math.max(1, now - f.lastTs);
-            const dy = pos.y - f.lastY;
-            const velocity = (dy / dt) * 1000;
-            const velThreshold = parseFloat(velRange.value) * 60;
-
-            if(Math.abs(velocity) > velThreshold && (now - f.lastTapTs) > 350){
-              // major movement detected for this finger on this hand
-              // map finger commands:
-              // index -> type last hovered key
-              // middle -> backspace
-              // thumb -> Enter
-              if(fingerName === 'index'){
-                if(f.lastHoveredKey){
-                  registerKey(f.lastHoveredKey);
+          // per-finger major movement detection (index: type, middle: backspace, thumb: enter/space)
+          function processFinger(fname, posObj){
+            const f = state.fingers[fname];
+            const now = performance.now();
+            if(f.lastY !== null && f.lastTs !== null){
+              const dt = Math.max(1, now - f.lastTs);
+              const dy = posObj.y - f.lastY;
+              const velocity = (dy / dt) * 1000;
+              const velThreshold = parseFloat(velRange.value) * 60;
+              if(Math.abs(velocity) > velThreshold && (now - f.lastTapTs) > 320){
+                if(fname === 'index'){
+                  if(f.lastHoveredKey) registerKey(f.lastHoveredKey);
+                } else if(fname === 'middle'){
+                  doBackspace();
+                } else if(fname === 'thumb'){
+                  if(f.lastHoveredKey && f.lastHoveredKey.label === 'Space') registerKey(f.lastHoveredKey);
+                  else typed.value += "\n";
                 }
-              } else if(fingerName === 'middle'){
-                doBackspace();
-              } else if(fingerName === 'thumb'){
-                // Special: if thumb hovered Space/Enter, prefer that; otherwise insert newline (Enter)
-                if(f.lastHoveredKey && f.lastHoveredKey.label === 'Space'){
-                  registerKey(f.lastHoveredKey);
-                } else {
-                  typed.value += "\n";
-                }
+                f.lastTapTs = now;
               }
-              f.lastTapTs = now;
             }
+            f.lastY = posObj.y; f.lastTs = now;
           }
 
-          // update last positions
-          f.lastY = pos.y;
-          f.lastTs = now;
+          processFinger('index', indexPos);
+          processFinger('middle', middlePos);
+          processFinger('thumb', thumbPos);
+
+          // pinch detection per-hand
+          const dx = thumbPos.x - indexPos.x;
+          const dy = thumbPos.y - indexPos.y;
+          const dist = Math.hypot(dx, dy);
+          const pinchThreshold = Math.max(22, handBox * 0.10);
+          const wasPinched = state.isPinched;
+          state.isPinched = dist < pinchThreshold;
+          if(state.isPinched && !wasPinched){ /* pinch started */ }
         }
 
-        processFinger('index', indexPos, hoveredIndex, TIP.INDEX);
-        processFinger('middle', middlePos, hoveredMiddle, TIP.MIDDLE);
-        processFinger('thumb', thumbPos, hoveredThumb, TIP.THUMB);
+        // choose pointer coords from chosen hand's index
+        if(chosen){
+          const chosenIdx = chosen.landmarks[TIP.INDEX];
+          let x = chosenIdx.x * canvas.width;
+          let y = chosenIdx.y * canvas.height;
+          if(mirrorToggle.checked) x = canvas.width - x;
+          lastPointer.x = x; lastPointer.y = y;
+          pointerHand = chosen.handed;
+        }
 
-        // pinch detection (thumb + index)
-        handlePinchCycle(handed, thumbPos, indexPos, handBoxSize);
+        // if both hands pinched around same time -> cycle layout
+        const leftPinched = handState.Left.isPinched;
+        const rightPinched = handState.Right.isPinched;
+        if(leftPinched && rightPinched && (now - pinchBothLast) > 700){
+          const keys = Object.keys(layouts);
+          const current = layoutSelect.value;
+          let idx = keys.indexOf(current);
+          idx = (idx + 1) % keys.length;
+          layoutSelect.value = keys[idx];
+          showToast('Layout: ' + layoutSelect.value);
+          pinchBothLast = now;
+        }
+
+        // Update pointer & mouse interactions
+        updatePointerAndMouse(now);
+      } else {
+        // no hands detected - if we had a mouseDown, release it (safety)
+        if(mouseDown){
+          // release where the cursor currently is
+          const { clientX, clientY } = mapCanvasToWindowClient(lastPointer.x, lastPointer.y);
+          dispatchPageMouseEvent('mouseup', clientX, clientY, mouseDownTarget);
+          dispatchPageMouseEvent('click', clientX, clientY, mouseDownTarget);
+          mouseDown = false; mouseDownTarget = null; cursorEl.classList.remove('down');
+        }
       }
     }
 
+    // helper convert hex to rgba
+    function hexToRgba(hex, a){
+      const c = hex.replace('#','');
+      const r = parseInt(c.substring(0,2),16);
+      const g = parseInt(c.substring(2,4),16);
+      const b = parseInt(c.substring(4,6),16);
+      return `rgba(${r},${g},${b},${a})`;
+    }
+
+    // --- Camera / MediaPipe init ---
     function startCamera(){
       if(camera) return;
-      hands = new Hands({
-        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-      });
-      hands.setOptions({
-        maxNumHands: 2,
-        modelComplexity: 1,
-        minDetectionConfidence: 0.6,
-        minTrackingConfidence: 0.6
-      });
+      hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
+      hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6 });
       hands.onResults(onResults);
 
       camera = new Camera(video, {
         onFrame: async () => { await hands.send({image: video}); },
-        width: 1280,
-        height: 720
+        width: 1280, height: 720
       });
       camera.start();
-      startBtn.disabled = true;
-      stopBtn.disabled = false;
-      // keep layoutIndex in sync with select at start
-      layoutIndex = layoutKeys.indexOf(layoutSelect.value);
-      if(layoutIndex < 0) layoutIndex = 0;
+      startBtn.disabled = true; stopBtn.disabled = false;
     }
+    function stopCamera(){ if(camera){ camera.stop(); camera = null; } if(hands){ hands.close(); hands = null; } startBtn.disabled = false; stopBtn.disabled = true; }
 
-    function stopCamera(){
-      if(camera){ camera.stop(); camera = null; }
-      if(hands){ hands.close(); hands = null; }
-      startBtn.disabled = false;
-      stopBtn.disabled = true;
-    }
-
-    // calibration: click-drag
-    canvas.addEventListener('pointerdown', (ev)=>{
-      if(!isCalibrating) return;
-      calStart = {x:ev.offsetX, y:ev.offsetY};
-    });
-    canvas.addEventListener('pointerup', (ev)=>{
-      if(!isCalibrating || !calStart) return;
-      const x1 = Math.min(calStart.x, ev.offsetX);
-      const x2 = Math.max(calStart.x, ev.offsetX);
-      const y1 = Math.min(calStart.y, ev.offsetY);
-      const y2 = Math.max(calStart.y, ev.offsetY);
-      keyboardArea = {x:x1, y:y1, w:x2-x1, h:y2-y1};
-      isCalibrating = false;
-      calStart = null;
-      calBtn.textContent = "Calibrate Keyboard Area";
-    });
-
-    calBtn.addEventListener('click', ()=>{
-      isCalibrating = !isCalibrating;
-      calBtn.textContent = isCalibrating ? "Click-drag on video to set area..." : "Calibrate Keyboard Area";
-    });
-    resetCalBtn.addEventListener('click', ()=>{ keyboardArea = null; });
-
+    // UI bindings
     startBtn.addEventListener('click', startCamera);
     stopBtn.addEventListener('click', stopCamera);
-
-    copyBtn.addEventListener('click', async ()=>{
-      try{
-        await navigator.clipboard.writeText(typed.value);
-        copyBtn.textContent = "Copied!";
-        setTimeout(()=>copyBtn.textContent = "Copy to clipboard", 1000);
-      } catch(e){ alert("Copy failed: " + e); }
-    });
-
-    clearBtn.addEventListener('click', ()=>{ typed.value = ""; });
-
-    layoutSelect.addEventListener('change', ()=>{
-      // keep layoutIndex in sync and show toast
-      layoutIndex = layoutKeys.indexOf(layoutSelect.value);
-      showToast("Layout: " + layoutSelect.value);
-    });
-
+    copyBtn.addEventListener('click', async ()=>{ try{ await navigator.clipboard.writeText(typed.value); copyBtn.textContent = 'Copied'; setTimeout(()=>copyBtn.textContent='Copy',700);}catch(e){alert('Copy failed: '+e);} });
+    clearBtn.addEventListener('click', ()=>{ typed.value = ''; });
     document.getElementById('btn-save').addEventListener('click', ()=>{ localStorage.setItem('camkb_text', typed.value); alert('Saved'); });
-    document.getElementById('btn-load').addEventListener('click', ()=>{ typed.value = localStorage.getItem('camkb_text') || ""; });
-
+    document.getElementById('btn-load').addEventListener('click', ()=>{ typed.value = localStorage.getItem('camkb_text') || ''; });
     document.getElementById('btn-download').addEventListener('click', ()=>{
-      const doctype = "<!doctype html>\n";
-      const html = document.documentElement.outerHTML;
-      const blob = new Blob([doctype+html], {type:'text/html'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'cam-invisible-keyboard-gestures.html';
-      a.click();
-      URL.revokeObjectURL(url);
+      const doctype = "<!doctype html>\n"; const html = document.documentElement.outerHTML;
+      const blob = new Blob([doctype+html], {type:'text/html'}); const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = 'camkb-offkeyboard-mouse.html'; a.click(); URL.revokeObjectURL(url);
     });
 
-    // initial sizing
-    fitCanvas();
-    keyboardArea = null;
-    ctx.fillStyle = 'rgba(255,255,255,0.02)';
-    ctx.fillRect(0,0,canvas.width,canvas.height);
+    layoutSelect.addEventListener('change', ()=>{ showToast('Layout: ' + layoutSelect.value); });
 
+    // initial canvas fill so UI looks present
+    ctx.fillStyle = 'rgba(255,255,255,0.02)'; ctx.fillRect(0,0,canvas.width,canvas.height);
   })();
   </script>
 </body>
-</html>
+</html>>
