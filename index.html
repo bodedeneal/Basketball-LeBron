@@ -3,15 +3,13 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Camera Invisible Keyboard — Prototype (Two Hands)</title>
+  <title>Camera Invisible Keyboard — Prototype (Gestures & Multi-finger)</title>
   <style>
     :root{
       --bg:#0b1220;
       --panel:#0f1724;
       --accent:#22c1c3;
       --muted:#94a3b8;
-      --key:#1e293b;
-      --key-active:#065f60;
       --white:#e6eef6;
     }
     html,body{height:100%;margin:0;font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial; background:linear-gradient(180deg,var(--bg),#071020); color:var(--white)}
@@ -37,6 +35,23 @@
     .kbd-mode{display:flex;gap:8px;align-items:center}
     .key-count{font-size:13px;color:var(--muted)}
     footer{margin-top:12px;color:var(--muted);font-size:13px}
+    .toast {
+      position: absolute;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.6);
+      color: #fff;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity .18s;
+    }
+    .toast.show { opacity: 1; }
+    .legend { font-size:12px;color:var(--muted); margin-top:8px; display:flex; gap:8px; flex-wrap:wrap }
+    .legend .dot { width:12px;height:12px;border-radius:50%;display:inline-block; margin-right:6px; vertical-align:middle }
   </style>
 </head>
 <body>
@@ -47,8 +62,8 @@
         <path d="M8 5h8" stroke="#94a3b8" stroke-width="1.6" stroke-linecap="round"></path>
       </svg>
       <div>
-        <h1>Camera Invisible Keyboard — Prototype (Two Hands)</h1>
-        <div style="color:var(--muted);font-size:13px">Tracks two hands. Left hand is orange, right hand is blue. When a major movement is detected, the last key each hand hovered over is typed.</div>
+        <h1>Camera Invisible Keyboard — Gestures & Multi-finger</h1>
+        <div style="color:var(--muted);font-size:13px">Pinch thumb+index to cycle keyboard layouts. Index types letters, middle deletes (backspace), thumb inserts Enter. Works per-hand (left/orange, right/blue).</div>
       </div>
     </header>
 
@@ -62,7 +77,7 @@
       </label>
       <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
         <label style="color:var(--muted)">Tap velocity</label>
-        <input id="vel" type="range" min="2" max="30" value="10" />
+        <input id="vel" type="range" min="2" max="40" value="10" />
       </div>
     </div>
 
@@ -70,18 +85,31 @@
       <div class="video-wrap" id="videoWrap">
         <video id="video" autoplay muted playsinline></video>
         <canvas id="overlay"></canvas>
+        <div id="toast" class="toast" aria-hidden="true"></div>
       </div>
 
       <div class="side">
         <div>
           <textarea id="typed" class="textbox" placeholder="Typed text will appear here..." readonly></textarea>
-          <div class="hint">Tip: position each hand's index finger above the virtual keyboard. Make a quick, major movement (flick) to "tap". The letter typed is the last key that finger was hovering over before the movement.</div>
-          <div class="row">
+          <div class="hint">
+            Tip: pinch (touch) your thumb to your index finger to switch keyboard layout. Use:
+            index finger = type hovered key,
+            middle finger = backspace,
+            thumb = Enter.
+          </div>
+
+          <div class="legend">
+            <div><span class="dot" style="background:#ff8a00"></span> Left hand (orange)</div>
+            <div><span class="dot" style="background:#2aa4ff"></span> Right hand (blue)</div>
+          </div>
+
+          <div class="row" style="margin-top:8px">
             <div class="kbd-mode">
               <label class="key-count">Layout:</label>
               <select id="layout">
                 <option value="qwerty">QWERTY (default)</option>
-                <option value="numeric">Numeric (10 keys)</option>
+                <option value="numeric">Numeric</option>
+                <option value="symbols">Symbols</option>
               </select>
             </div>
           </div>
@@ -102,7 +130,7 @@
     </div>
 
     <footer>
-      Prototype: two-hand heuristic detection. For production, consider depth sensors, markers, or ML classifiers for better accuracy.
+      Prototype: gesture heuristics only. For production, use extra sensors or ML models to increase robustness.
     </footer>
   </div>
 
@@ -112,10 +140,8 @@
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
 
   <script>
-  // Two-hand prototype:
-  // - Left hand renders orange, right hand renders blue
-  // - Each hand remembers the last key it hovered over
-  // - When a "major" movement (velocity) is detected for a hand, the last-hovered key for that hand is typed
+  // Finger indices from MediaPipe landmarks
+  const TIP = { THUMB:4, INDEX:8, MIDDLE:12, RING:16, PINKY:20 };
 
   (function(){
     const video = document.getElementById('video');
@@ -131,29 +157,40 @@
     const layoutSelect = document.getElementById('layout');
     const calBtn = document.getElementById('btn-calibrate');
     const resetCalBtn = document.getElementById('btn-reset-cal');
+    const toastEl = document.getElementById('toast');
 
     let camera = null;
     let hands = null;
     let videoWidth = 640, videoHeight = 480;
-    let cooldown = 350; // ms between taps per hand
-    let keyboardArea = null; // {x,y,w,h} in pixels on canvas
+    let keyboardArea = null;
     let isCalibrating = false;
     let calStart = null;
-    let lastKeyPressed = null;
 
-    // Colors for hands
+    // Colors per handedness
     const COLORS = {
-      Left: {fill: '#ff8a00', stroke: '#ffb480'},   // orange (left)
-      Right: {fill: '#2aa4ff', stroke: '#8fd7ff'}   // blue (right)
+      Left: { fill: '#ff8a00', stroke: '#ffb480' },
+      Right: { fill: '#2aa4ff', stroke: '#8fd7ff' }
     };
 
-    // State per hand by handedness label ("Left" / "Right")
+    // Per-hand state includes per-finger substate
     const handState = {
-      Left: { lastIndexY: null, lastTs: null, lastHoveredKey: null, lastTapTs: 0 },
-      Right: { lastIndexY: null, lastTs: null, lastHoveredKey: null, lastTapTs: 0 }
+      Left: makeHandState(),
+      Right: makeHandState()
     };
 
-    // Keyboard rows (qwerty) simple layout — adaptive to keyboardArea
+    function makeHandState(){
+      return {
+        // finger states keyed by 'thumb','index','middle'
+        fingers: {
+          thumb: { lastY:null, lastTs:null, lastHoveredKey:null, lastTapTs:0 },
+          index: { lastY:null, lastTs:null, lastHoveredKey:null, lastTapTs:0 },
+          middle:{ lastY:null, lastTs:null, lastHoveredKey:null, lastTapTs:0 }
+        },
+        lastPinchTs: 0
+      };
+    }
+
+    // Keyboard layouts
     const layouts = {
       qwerty: [
         "qwertyuiop".split(''),
@@ -165,8 +202,15 @@
         ["1","2","3","4","5"],
         ["6","7","8","9","0"],
         ["-","/",".","Enter"]
+      ],
+      symbols: [
+        ["!","@","#","$","%","^","&","*","(",")"],
+        ["_","+","{","}","[","]","|",";",":"],
+        ["'",'"',",",".","?","/","\\","<",">"],
       ]
     };
+    const layoutKeys = Object.keys(layouts);
+    let layoutIndex = 0; // sync with select
 
     function fitCanvas(){
       const wrap = document.getElementById('videoWrap');
@@ -174,12 +218,10 @@
       canvas.height = wrap.clientHeight;
       videoWidth = canvas.width; videoHeight = canvas.height;
     }
-
     window.addEventListener('resize', fitCanvas);
 
     function drawKeyboard(){
       if(!keyboardArea){
-        // default: bottom 35% of canvas
         keyboardArea = {
           x: canvas.width * 0.05,
           y: canvas.height * 0.60,
@@ -189,10 +231,9 @@
       }
       const L = layouts[layoutSelect.value] || layouts.qwerty;
       ctx.save();
-      // keyboard background
       ctx.fillStyle = 'rgba(10,12,16,0.5)';
       ctx.fillRect(keyboardArea.x, keyboardArea.y, keyboardArea.w, keyboardArea.h);
-      // draw rows
+
       const rows = L.length;
       const rowH = keyboardArea.h / rows;
       for(let r=0;r<rows;r++){
@@ -207,28 +248,34 @@
           const kh = rowH - padding*1.5;
           const label = row[c];
 
-          // check hover highlights from both hands
-          let hoverColor = null;
-          for(const labelKey of ['Left','Right']){
-            const h = handState[labelKey];
-            if(h && h.lastHoveredKey && h.lastHoveredKey.row === r && h.lastHoveredKey.col === c){
-              hoverColor = COLORS[labelKey].fill;
-              break; // if both hover same key, picks the first (Left priority). We could composite if desired.
+          // check hover highlights from any finger/hand and composite colors
+          let composite = null;
+          for(const hname of ['Left','Right']){
+            const hs = handState[hname];
+            for(const fname of ['index','middle','thumb']){
+              const f = hs.fingers[fname];
+              if(f && f.lastHoveredKey && f.lastHoveredKey.row===r && f.lastHoveredKey.col===c){
+                // give priority index > middle > thumb in visual mixing
+                const base = COLORS[hname].fill;
+                composite = composite ? composite : base;
+                // Don't break - allow both hands to contribute; we keep first found to keep visuals simple
+                if(fname === 'index'){ break; }
+              }
             }
+            if(composite && composite === COLORS.Left.fill) break;
           }
 
-          // key background
-          if(hoverColor){
-            ctx.fillStyle = hexToRgba(hoverColor, 0.9);
+          if(composite){
+            ctx.fillStyle = hexToRgba(composite, 0.92);
           } else {
             ctx.fillStyle = 'rgba(30,41,59,0.88)';
           }
+
           ctx.strokeStyle = "rgba(255,255,255,0.03)";
           roundRect(ctx, kx, ky, kw, kh, 8, true, true);
 
-          // label
           ctx.fillStyle = '#e6eef6';
-          ctx.font = `${Math.max(14, kh*0.45)}px system-ui`;
+          ctx.font = `${Math.max(12, kh*0.42)}px system-ui`;
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
           const tx = kx + kw/2;
@@ -236,7 +283,7 @@
           ctx.fillText(label, tx, ty);
         }
       }
-      // border
+
       ctx.strokeStyle = 'rgba(255,255,255,0.04)';
       ctx.strokeRect(keyboardArea.x, keyboardArea.y, keyboardArea.w, keyboardArea.h);
       ctx.restore();
@@ -261,7 +308,6 @@
     }
 
     function hexToRgba(hex, alpha){
-      // simple hex to rgba helper
       const c = hex.replace('#','');
       const r = parseInt(c.substring(0,2),16);
       const g = parseInt(c.substring(2,4),16);
@@ -300,96 +346,153 @@
       if(label === "Space") typed.value += " ";
       else if(label === "Enter") typed.value += "\n";
       else typed.value += label;
-      lastKeyPressed = {row:k.row,col:k.col};
-      setTimeout(()=>{ lastKeyPressed = null }, 120);
     }
 
-    // onResults processes up to 2 hands and applies two-hand logic
+    function doBackspace(){
+      typed.value = typed.value.slice(0, -1);
+    }
+
+    function showToast(msg, ms=900){
+      toastEl.textContent = msg;
+      toastEl.classList.add('show');
+      toastEl.setAttribute('aria-hidden','false');
+      clearTimeout(toastEl._t);
+      toastEl._t = setTimeout(()=>{ toastEl.classList.remove('show'); toastEl.setAttribute('aria-hidden','true'); }, ms);
+    }
+
+    // Gesture: pinch thumb+index to cycle layout
+    function handlePinchCycle(handed, thumbPos, indexPos, handBoxSize){
+      const state = handState[handed];
+      if(!state) return;
+      // distance normalized by handBoxSize (approximate scaled)
+      const dx = thumbPos.x - indexPos.x;
+      const dy = thumbPos.y - indexPos.y;
+      const dist = Math.hypot(dx,dy);
+      const thresh = Math.max(28, handBoxSize * 0.12); // flexible threshold
+      const now = performance.now();
+      if(dist < thresh && (now - state.lastPinchTs) > 600){
+        // cycle layout
+        layoutIndex = (layoutIndex + 1) % layoutKeys.length;
+        layoutSelect.value = layoutKeys[layoutIndex];
+        showToast("Layout: " + layoutSelect.value);
+        state.lastPinchTs = now;
+      }
+    }
+
+    // Main results handler
     function onResults(results){
       fitCanvas();
       ctx.clearRect(0,0,canvas.width, canvas.height);
       drawKeyboard();
 
-      // faint camera overlay for context
+      // faint camera overlay
       ctx.save();
-      ctx.globalAlpha = 0.08;
+      ctx.globalAlpha = 0.06;
       ctx.fillStyle = '#000';
       ctx.fillRect(0,0,canvas.width,canvas.height);
       ctx.restore();
 
-      // Prepare hovered reset for hands not seen this frame (we don't clear hovered until we see the hand move out of keyboard)
-      const seenHands = new Set();
+      if(!results.multiHandLandmarks || results.multiHandLandmarks.length === 0){
+        // no hand - we keep state but return
+        return;
+      }
 
-      if(results.multiHandLandmarks && results.multiHandLandmarks.length > 0){
-        for(let i=0;i<results.multiHandLandmarks.length;i++){
-          const landmarks = results.multiHandLandmarks[i];
-          const handed = (results.multiHandedness && results.multiHandedness[i] && results.multiHandedness[i].label) ? results.multiHandedness[i].label : (i===0 ? 'Right' : 'Left');
-          const state = handState[handed] || (handState[handed] = { lastIndexY:null, lastTs:null, lastHoveredKey:null, lastTapTs:0 });
-          seenHands.add(handed);
+      // Process up to two hands; use MediaPipe handedness if available
+      for(let i=0;i<results.multiHandLandmarks.length;i++){
+        const landmarks = results.multiHandLandmarks[i];
+        const handed = (results.multiHandedness && results.multiHandedness[i] && results.multiHandedness[i].label) ? results.multiHandedness[i].label : (i === 0 ? 'Right' : 'Left');
+        const state = handState[handed] || (handState[handed] = makeHandState());
 
-          // index finger tip landmark index 8
-          const idx = landmarks[8];
-          let ix = idx.x * canvas.width;
-          let iy = idx.y * canvas.height;
-          if(mirrorToggle.checked){
-            ix = canvas.width - ix;
-          }
+        // compute approximate hand bounding box size to normalize pinch threshold
+        let minX=1,minY=1,maxX=0,maxY=0;
+        for(const p of landmarks){ minX=Math.min(minX,p.x); minY=Math.min(minY,p.y); maxX=Math.max(maxX,p.x); maxY=Math.max(maxY,p.y); }
+        const handBoxSize = Math.max((maxX-minX)*canvas.width, (maxY-minY)*canvas.height);
 
-          // draw connectors / landmarks with hand color
-          const colorFill = COLORS[handed] ? COLORS[handed].fill : '#ffffff';
-          const colorStroke = COLORS[handed] ? COLORS[handed].stroke : '#ffffff';
+        // per-finger positions
+        function mkPos(landmarkIndex){
+          let x = landmarks[landmarkIndex].x * canvas.width;
+          let y = landmarks[landmarkIndex].y * canvas.height;
+          if(mirrorToggle.checked) x = canvas.width - x;
+          return {x,y};
+        }
+        const thumbPos = mkPos(TIP.THUMB);
+        const indexPos = mkPos(TIP.INDEX);
+        const middlePos = mkPos(TIP.MIDDLE);
 
-          drawConnectors(ctx, landmarks, HAND_CONNECTIONS, {color: colorStroke, lineWidth:2});
-          drawLandmarks(ctx, landmarks, {color: colorFill, lineWidth:1, radius:2});
+        // draw hand landmarks & colored pointers
+        const col = COLORS[handed] ? COLORS[handed] : { fill:'#fff', stroke:'#fff' };
+        drawConnectors(ctx, landmarks, HAND_CONNECTIONS, {color: col.stroke, lineWidth:2});
+        drawLandmarks(ctx, landmarks, {color: col.fill, lineWidth:1, radius:2});
 
-          // draw fingertip pointer emphasized
-          ctx.beginPath();
-          ctx.fillStyle = hexToRgba(colorFill, 0.96);
-          ctx.arc(ix, iy, 10, 0, Math.PI*2);
-          ctx.fill();
+        // Draw finger tip markers larger for ease of seeing
+        ctx.beginPath(); ctx.fillStyle = hexToRgba(col.fill,0.98); ctx.arc(indexPos.x, indexPos.y, 9, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.fillStyle = hexToRgba(col.fill,0.6); ctx.arc(middlePos.x, middlePos.y, 8, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.fillStyle = hexToRgba(col.fill,0.72); ctx.arc(thumbPos.x, thumbPos.y, 8, 0, Math.PI*2); ctx.fill();
 
-          // update hovered key (finger position)
-          const hovered = getKeyAt(ix, iy);
-          if(hovered){
-            // attach row/col to stored object
-            state.lastHoveredKey = { row: hovered.row, col: hovered.col, label: hovered.label, keyX: hovered.keyX, keyY: hovered.keyY, keyW: hovered.keyW, keyH: hovered.keyH };
-          }
+        // Update hovered keys for each finger
+        const hoveredIndex = getKeyAt(indexPos.x, indexPos.y);
+        const hoveredMiddle = getKeyAt(middlePos.x, middlePos.y);
+        const hoveredThumb = getKeyAt(thumbPos.x, thumbPos.y);
 
-          // compute "major movement" by velocity of y (dy/dt). Positive dy = moving downwards on canvas
+        // helper to update finger state and detect major movement
+        function processFinger(fingerName, pos, hovered, tipIndex){
+          const f = state.fingers[fingerName];
           const now = performance.now();
-          if(state.lastIndexY !== null && state.lastTs !== null){
-            const dt = Math.max(1, now - state.lastTs);
-            const dy = iy - state.lastIndexY;
-            const velocity = (dy / dt) * 1000; // px / sec approx
-            const velThreshold = parseFloat(velRange.value) * 60; // tunable multiplier
 
-            // major movement => velocity magnitude exceeds threshold
-            if(Math.abs(velocity) > velThreshold && (now - state.lastTapTs) > cooldown){
-              // register the last hovered key (the key the finger was above before the movement)
-              if(state.lastHoveredKey){
-                registerKey(state.lastHoveredKey);
-                state.lastTapTs = now;
+          // store hovered key if present
+          if(hovered){
+            f.lastHoveredKey = { row: hovered.row, col: hovered.col, label: hovered.label, keyX: hovered.keyX, keyY: hovered.keyY, keyW: hovered.keyW, keyH: hovered.keyH };
+          }
+
+          // compute velocity in Y
+          if(f.lastY !== null && f.lastTs !== null){
+            const dt = Math.max(1, now - f.lastTs);
+            const dy = pos.y - f.lastY;
+            const velocity = (dy / dt) * 1000;
+            const velThreshold = parseFloat(velRange.value) * 60;
+
+            if(Math.abs(velocity) > velThreshold && (now - f.lastTapTs) > 350){
+              // major movement detected for this finger on this hand
+              // map finger commands:
+              // index -> type last hovered key
+              // middle -> backspace
+              // thumb -> Enter
+              if(fingerName === 'index'){
+                if(f.lastHoveredKey){
+                  registerKey(f.lastHoveredKey);
+                }
+              } else if(fingerName === 'middle'){
+                doBackspace();
+              } else if(fingerName === 'thumb'){
+                // Special: if thumb hovered Space/Enter, prefer that; otherwise insert newline (Enter)
+                if(f.lastHoveredKey && f.lastHoveredKey.label === 'Space'){
+                  registerKey(f.lastHoveredKey);
+                } else {
+                  typed.value += "\n";
+                }
               }
+              f.lastTapTs = now;
             }
           }
 
-          state.lastIndexY = iy;
-          state.lastTs = now;
+          // update last positions
+          f.lastY = pos.y;
+          f.lastTs = now;
         }
+
+        processFinger('index', indexPos, hoveredIndex, TIP.INDEX);
+        processFinger('middle', middlePos, hoveredMiddle, TIP.MIDDLE);
+        processFinger('thumb', thumbPos, hoveredThumb, TIP.THUMB);
+
+        // pinch detection (thumb + index)
+        handlePinchCycle(handed, thumbPos, indexPos, handBoxSize);
       }
-
-      // If a hand was not seen this frame, we keep its lastHoveredKey so that if it re-enters quickly it still has context.
-      // Optionally, we could clear hovered for hands not seen for a while (not implemented here).
-
     }
 
     function startCamera(){
       if(camera) return;
-      // initialize MediaPipe Hands
       hands = new Hands({
-        locateFile: (file) => {
-          return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
-        }
+        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
       });
       hands.setOptions({
         maxNumHands: 2,
@@ -400,31 +503,26 @@
       hands.onResults(onResults);
 
       camera = new Camera(video, {
-        onFrame: async () => {
-          await hands.send({image: video});
-        },
+        onFrame: async () => { await hands.send({image: video}); },
         width: 1280,
         height: 720
       });
       camera.start();
       startBtn.disabled = true;
       stopBtn.disabled = false;
+      // keep layoutIndex in sync with select at start
+      layoutIndex = layoutKeys.indexOf(layoutSelect.value);
+      if(layoutIndex < 0) layoutIndex = 0;
     }
 
     function stopCamera(){
-      if(camera){
-        camera.stop();
-        camera = null;
-      }
-      if(hands){
-        hands.close();
-        hands = null;
-      }
+      if(camera){ camera.stop(); camera = null; }
+      if(hands){ hands.close(); hands = null; }
       startBtn.disabled = false;
       stopBtn.disabled = true;
     }
 
-    // calibration: click-drag on overlay to set keyboardArea
+    // calibration: click-drag
     canvas.addEventListener('pointerdown', (ev)=>{
       if(!isCalibrating) return;
       calStart = {x:ev.offsetX, y:ev.offsetY};
@@ -445,10 +543,7 @@
       isCalibrating = !isCalibrating;
       calBtn.textContent = isCalibrating ? "Click-drag on video to set area..." : "Calibrate Keyboard Area";
     });
-
-    resetCalBtn.addEventListener('click', ()=>{
-      keyboardArea = null;
-    });
+    resetCalBtn.addEventListener('click', ()=>{ keyboardArea = null; });
 
     startBtn.addEventListener('click', startCamera);
     stopBtn.addEventListener('click', stopCamera);
@@ -458,20 +553,20 @@
         await navigator.clipboard.writeText(typed.value);
         copyBtn.textContent = "Copied!";
         setTimeout(()=>copyBtn.textContent = "Copy to clipboard", 1000);
-      } catch(e){
-        alert("Copy failed: " + e);
-      }
+      } catch(e){ alert("Copy failed: " + e); }
     });
 
     clearBtn.addEventListener('click', ()=>{ typed.value = ""; });
 
-    layoutSelect.addEventListener('change', ()=>{ /* redraw next frame */ });
+    layoutSelect.addEventListener('change', ()=>{
+      // keep layoutIndex in sync and show toast
+      layoutIndex = layoutKeys.indexOf(layoutSelect.value);
+      showToast("Layout: " + layoutSelect.value);
+    });
 
-    // simple save/load localStorage
     document.getElementById('btn-save').addEventListener('click', ()=>{ localStorage.setItem('camkb_text', typed.value); alert('Saved'); });
     document.getElementById('btn-load').addEventListener('click', ()=>{ typed.value = localStorage.getItem('camkb_text') || ""; });
 
-    // download page (single-file) -- just trigger a blob download of current HTML (this file itself)
     document.getElementById('btn-download').addEventListener('click', ()=>{
       const doctype = "<!doctype html>\n";
       const html = document.documentElement.outerHTML;
@@ -479,16 +574,17 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'cam-invisible-keyboard-two-hands.html';
+      a.download = 'cam-invisible-keyboard-gestures.html';
       a.click();
       URL.revokeObjectURL(url);
     });
 
-    // initial sizing and defaults
+    // initial sizing
     fitCanvas();
-    keyboardArea = null; // will default when drawing
+    keyboardArea = null;
     ctx.fillStyle = 'rgba(255,255,255,0.02)';
     ctx.fillRect(0,0,canvas.width,canvas.height);
+
   })();
   </script>
 </body>
