@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>CamKB — Movable Corners, Game Mode, Thumb Options</title>
+  <title>CamKB — Movable Corners + Game Mode + Thumb Options (Fixed Hands)</title>
   <style>
     :root{
       --bg:#071020;
@@ -49,7 +49,7 @@
   <div class="app">
     <header>
       <div>
-        <h1>CamKB — Movable Corners + Game Mode + Thumb Options</h1>
+        <h1>CamKB — Movable Corners + Game Mode + Thumb Options (Fixed Hands)</h1>
         <div style="color:var(--muted);font-size:13px">Drag keyboard corners to fit your desk. Switch between Keyboard and Game modes. Select which finger controls the game and what thumb action does.</div>
       </div>
     </header>
@@ -272,7 +272,6 @@
       });
       handle.addEventListener('pointermove', (ev)=>{
         if(!draggingHandle) return;
-        // compute normalized coords relative to canvas
         const rect = canvas.getBoundingClientRect();
         let nx = (ev.clientX - rect.left) / rect.width;
         let ny = (ev.clientY - rect.top) / rect.height;
@@ -308,16 +307,12 @@
     function drawKeyboardOutline(){
       if(!canvas.width || !canvas.height) return;
       const area = keyboardAreaFromCorners();
-      // faint background
-      ctx.save();
-      // we want invisible keyboard with outlines per key
       const L = [
         "qwertyuiop".split(''),
         "asdfghjkl".split(''),
         "zxcvbnm".split(''),
         ["Space"]
       ];
-      // draw keys
       const rows = L.length;
       const rowH = area.h / rows;
       for(let r=0;r<rows;r++){
@@ -339,7 +334,6 @@
           ctx.fillText(row[c], kx + kw/2, ky + kh/2);
         }
       }
-      ctx.restore();
     }
 
     // helper roundRect
@@ -366,13 +360,13 @@
       const area = keyboardAreaFromCorners();
       const relX = x - area.x, relY = y - area.y;
       if(relX < 0 || relY < 0 || relX > area.w || relY > area.h) return null;
-      const rows = 4;
       const L = [
         "qwertyuiop".split(''),
         "asdfghjkl".split(''),
         "zxcvbnm".split(''),
         ["Space"]
       ];
+      const rows = L.length;
       const rowH = area.h / rows;
       const r = Math.floor(relY / rowH);
       const row = L[r];
@@ -426,9 +420,7 @@
           if(!p.passed && p.x + pipeW < 60){ p.passed = true; score++; updateScore(); }
         });
         pipes = pipes.filter(p=>p.x + pipeW > -20);
-        // collision with ground/ceiling
         if(birdY > h || birdY < 0) end();
-        // collision with pipes
         for(const p of pipes){
           const bx = 60, by = birdY;
           if(bx + 12 > p.x && bx - 12 < p.x + pipeW){
@@ -439,21 +431,15 @@
         }
       }
       function draw(){
-        // background
         gctx.clearRect(0,0,w,h);
         gctx.fillStyle = '#051024'; gctx.fillRect(0,0,w,h);
-        // pipes
         gctx.fillStyle = '#17a2ff';
         pipes.forEach(p=>{
-          // top
           gctx.fillRect(p.x, 0, pipeW, p.top);
-          // bottom
           gctx.fillRect(p.x, p.top + gap, pipeW, h - (p.top + gap));
         });
-        // bird
         gctx.fillStyle = '#ffd166';
         gctx.beginPath(); gctx.arc(60, birdY, 12, 0, Math.PI*2); gctx.fill();
-        // score
         gctx.fillStyle = '#ffffff'; gctx.font = '18px system-ui'; gctx.fillText('Score: '+score, 8, 20);
       }
       function flap(){ if(!running) return; birdV = flapV; }
@@ -465,7 +451,6 @@
 
     // map normalized coords to page coords for OS cursor extension messages (not implemented here)
     function postPointerMessage(nx, ny, down){
-      // post message to window for extension content script to forward to native host if you use native bridge
       window.postMessage({ type: 'CAMKB_MOUSE', x: nx, y: ny, down: down }, '*');
     }
 
@@ -488,7 +473,6 @@
         }
       }
       state.lastX = thumbPos.x; state.lastTs = now;
-      // trigger when count >=3 and not fired recently
       if((state.waveCount || 0) >= 3 && (now - (state.lastWaveFired || 0)) > 1300){
         const action = thumbActionSel.value; // enter/space/disabled
         if(action === 'enter') typed.value += '\n';
@@ -512,30 +496,36 @@
       return target;
     }
 
+    // Build a consistent hands list (handedness + landmarks)
+    function handsListFromResults(results){
+      const out = [];
+      if(!results.multiHandLandmarks) return out;
+      for(let i=0;i<results.multiHandLandmarks.length;i++){
+        const landmarks = results.multiHandLandmarks[i];
+        const handed = (results.multiHandedness && results.multiHandedness[i] && results.multiHandedness[i].label) ? results.multiHandedness[i].label : (i===0 ? 'Right' : 'Left');
+        out.push({ landmarks, handed });
+      }
+      return out;
+    }
+
     // main onResults handler (MediaPipe)
     function onResults(results){
       fitCanvas();
       ctx.clearRect(0,0,canvas.width,canvas.height);
-      // faint overlay and keyboard outline
       ctx.save(); ctx.globalAlpha = 0.06; ctx.fillStyle = '#000'; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.restore();
       drawKeyboardOutline();
 
-      if(!results.multiHandLandmarks || results.multiHandLandmarks.length === 0){
-        // no hands: reset last positions so flicks don't persist
-        // release any synthetic mouse if pressed
-        return;
+      const handsList = handsListFromResults(results);
+      if(handsList.length){
+        console.debug('hands detected:', handsList.length);
       }
 
-      // prefer Right hand for pointer; get list with handedness
-      const handsList = [];
-      for(let i=0;i<results.multiHandLandmarks.length;i++){
-        const landmarks = results.multiHandLandmarks[i];
-        const handed = (results.multiHandedness && results.multiHandedness[i] && results.multiHandedness[i].label) ? results.multiHandedness[i].label : (i===0 ? 'Right' : 'Left');
-        handsList.push({landmarks, handed});
-      }
+      // if no hands, return
+      if(handsList.length === 0) return;
 
-      // loop through hands and update states
       const now = performance.now();
+
+      // process each hand uniformly
       for(const hp of handsList){
         const landmarks = hp.landmarks;
         const handed = hp.handed;
@@ -548,12 +538,11 @@
         const indexPos = pos(TIP.INDEX);
         const middlePos = pos(TIP.MIDDLE);
 
-        // draw hand debug points (colored)
+        // draw hand debug
         const col = COLORS[handed] || { fill:'#fff', stroke:'#fff' };
         drawConnectors(ctx, landmarks, HAND_CONNECTIONS, { color: col.stroke, lineWidth: 2 });
         drawLandmarks(ctx, landmarks, { color: col.fill, lineWidth: 1, radius: 2 });
 
-        // fingertip markers
         ctx.beginPath(); ctx.fillStyle = col.fill; ctx.arc(indexPos.x, indexPos.y, 9, 0, Math.PI*2); ctx.fill();
         ctx.beginPath(); ctx.fillStyle = col.fill; ctx.arc(thumbPos.x, thumbPos.y, 8, 0, Math.PI*2); ctx.fill();
         ctx.beginPath(); ctx.fillStyle = col.fill; ctx.arc(middlePos.x, middlePos.y, 8, 0, Math.PI*2); ctx.fill();
@@ -566,19 +555,16 @@
         if(hoveredMid) state.fingers.middle.lastHoveredKey = {...hoveredMid};
         if(hoveredThumb) state.fingers.thumb.lastHoveredKey = {...hoveredThumb};
 
-        // highlight hovered index key
         if(hoveredIndex){
           ctx.save(); ctx.lineWidth = 2.4; ctx.strokeStyle = col.fill; roundRect(ctx, hoveredIndex.keyX, hoveredIndex.keyY, hoveredIndex.keyW, hoveredIndex.keyH, 8, false, true); ctx.restore();
         }
 
-        // per-finger major movement detection (velocity on Y)
+        // per-finger processing
         function processFinger(fname, posObj){
           const f = state.fingers[fname];
           const now = performance.now();
           if(fname === 'thumb'){
-            // triple-wave detector
             processThumbWaves(handed, posObj);
-            // still allow thumb downward flick to insert space if configured and hovering space
             if(f.lastY !== null && f.lastTs !== null){
               const dt = Math.max(1, now - f.lastTs);
               const dy = posObj.y - f.lastY;
@@ -593,19 +579,16 @@
             }
             f.lastY = posObj.y; f.lastTs = now;
           } else {
-            const now = performance.now();
             if(f.lastY !== null && f.lastTs !== null){
               const dt = Math.max(1, now - f.lastTs);
               const dy = posObj.y - f.lastY;
               const velocity = (dy / dt) * 1000;
               const velThreshold = parseFloat(document.getElementById('vel').value) * 60;
               if(Math.abs(velocity) > velThreshold && (now - f.lastTapTs) > 320){
-                // map finger command depending on mode and mapping
                 if(modeSelect.value === 'keyboard'){
-                  if(fname === 'index'){ if(f.lastHoveredKey) typed.value += f.lastHoveredKey.label === 'Space' ? ' ' : (f.lastHoveredKey.label === 'Enter' ? '\n' : f.lastHoveredKey.label); }
+                  if(fname === 'index'){ if(f.lastHoveredKey) typed.value += (f.lastHoveredKey.label === 'Space' ? ' ' : (f.lastHoveredKey.label === 'Enter' ? '\n' : f.lastHoveredKey.label)); }
                   else if(fname === 'middle'){ typed.value = typed.value.slice(0,-1); }
                 } else if(modeSelect.value === 'game'){
-                  // in game mode, selected game finger triggers flap
                   const gf = gameFingerSel.value;
                   if(gf === fname && Game.isRunning()){
                     Game.flap();
@@ -622,67 +605,48 @@
         processFinger('middle', middlePos);
         processFinger('thumb', thumbPos);
 
-        // pinch detection (thumb-index)
+        // pinch detection: update isPinched
         const dx = thumbPos.x - indexPos.x;
         const dy = thumbPos.y - indexPos.y;
+        const handBox = Math.max(40, Math.abs(landmarks[0].x - landmarks[9].x) * canvas.width);
         const dist = Math.hypot(dx, dy);
-        // rough hand size heuristic:
-        let handBox = 80;
-        try{
-          handBox = Math.max(40, Math.abs(landmarks[0].x - landmarks[9].x) * canvas.width);
-        }catch(e){}
         const pinchThreshold = Math.max(18, handBox * 0.10);
-        const wasPinched = state.isPinched;
         state.isPinched = dist < pinchThreshold;
-        // When Right hand is outside keyboard area and off-keyboard OS control (extension) used, the page posts pointer messages (handled earlier)
-        // Also we update visual cursor to follow Right index (prefer Right)
-      } // end hands loop
+      } // end for each hand
 
-      // determine pointer hand (prefer Right)
-      let chosen = null, chosenHand = null;
-      for(const hp of handsListFromResults(results)){
-        if(hp.handed === 'Right'){ chosen = hp.landmarks; chosenHand = 'Right'; break; }
+      // choose pointer to visualize (prefer Right)
+      let chosenHand = null;
+      let chosenLandmarks = null;
+      for(const hp of handsList){
+        if(hp.handed === 'Right'){ chosenHand = 'Right'; chosenLandmarks = hp.landmarks; break; }
       }
-      if(!chosen){ chosen = results.multiHandLandmarks[0]; chosenHand = (results.multiHandedness && results.multiHandedness[0] && results.multiHandedness[0].label) ? results.multiHandedness[0].label : 'Right'; }
-
-      if(chosen){
-        let idx = chosen[TIP.INDEX];
+      if(!chosenLandmarks){
+        chosenHand = handsList[0].handed;
+        chosenLandmarks = handsList[0].landmarks;
+      }
+      if(chosenLandmarks){
+        let idx = chosenLandmarks[TIP.INDEX];
         let x = idx.x * canvas.width, y = idx.y * canvas.height;
         if(mirrorToggle.checked) x = canvas.width - x;
         lastPointer.x = x; lastPointer.y = y;
         cursorEl.style.left = x + 'px'; cursorEl.style.top = y + 'px';
 
-        // if mode is game and selected finger is index/middle/thumb, we've already triggered flap via velocity above
-        // Additionally support pinch control to send a flap when pinched if gameFinger=="thumb" or "index" depending mapping
+        // in game mode, allow pinch to flap if selected finger is thumb (optional)
         if(modeSelect.value === 'game'){
-          // check if selected finger is pinched (special mapping: thumb-index pinch triggers flap if selected)
-          const selected = gameFingerSel.value;
-          if(selected === 'thumb'){
-            // if thumb made triple-wave handler will have fired; also allow pinch as alternative
-            for(const hp of handsListFromResults(results)){
-              const handed = hp.handed;
-              const s = handState[handed];
-              if(s.isPinched && Game.isRunning()){
+          for(const hp of handsList){
+            const hname = hp.handed;
+            const s = handState[hname];
+            if(s.isPinched && Game.isRunning()){
+              const gf = gameFingerSel.value;
+              // allow pinch to act as flap for either hand if configured
+              if(gf === 'index' || gf === 'thumb' || gf === 'middle'){
                 Game.flap();
               }
             }
           }
         }
       }
-
     } // end onResults
-
-    // helper to extract hands list with handedness from results
-    function handsListFromResults(results){
-      const out = [];
-      if(!results.multiHandLandmarks) return out;
-      for(let i=0;i<results.multiHandLandmarks.length;i++){
-        const landmarks = results.multiHandLandmarks[i];
-        const handed = (results.multiHandedness && results.multiHandedness[i] && results.multiHandedness[i].label) ? results.multiHandedness[i].label : (i===0 ? 'Right' : 'Left');
-        out.push({landmarks, handed});
-      }
-      return out;
-    }
 
     // init MediaPipe and camera
     function startCamera(){
@@ -693,10 +657,12 @@
 
       camera = new Camera(video, { onFrame: async ()=>{ await hands.send({image: video}); }, width: 1280, height: 720 });
       camera.start();
+      camera._started = true;
       startBtn.disabled = true; stopBtn.disabled = false;
+      console.debug('Camera started');
       showToast('Camera started', 700);
     }
-    function stopCamera(){ if(camera){ camera.stop(); camera=null; } if(hands){ hands.close(); hands=null; } startBtn.disabled=false; stopBtn.disabled=true; showToast('Camera stopped',700); }
+    function stopCamera(){ if(camera){ camera.stop(); camera=null; } if(hands){ hands.close(); hands=null; } startBtn.disabled=false; stopBtn.disabled=true; console.debug('Camera stopped'); showToast('Camera stopped',700); }
 
     // UI: save/load text
     document.getElementById('btn-save').addEventListener('click', ()=>{ localStorage.setItem('camkb_text', typed.value); showToast('Saved'); });
@@ -706,7 +672,7 @@
       const html = document.documentElement.outerHTML;
       const blob = new Blob([doctype+html], {type:'text/html'});
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = 'camkb-movable-game.html'; a.click();
+      const a = document.createElement('a'); a.href = url; a.download = 'camkb-movable-game-fixed.html'; a.click();
       URL.revokeObjectURL(url);
     });
 
@@ -724,15 +690,6 @@
     // initial positioning of handles
     positionHandles();
 
-    // helper hexToRgba for highlight
-    function hexToRgba(hex, alpha){
-      const c = hex.replace('#','');
-      const r = parseInt(c.substring(0,2),16);
-      const g = parseInt(c.substring(2,4),16);
-      const b = parseInt(c.substring(4,6),16);
-      return `rgba(${r},${g},${b},${alpha})`;
-    }
-
     // small debug export to console
     window.CamKB = {
       getCorners: ()=>corners,
@@ -742,10 +699,6 @@
     // small visual and canvas initial clear
     ctx.fillStyle = 'rgba(255,255,255,0.02)'; ctx.fillRect(0,0,canvas.width,canvas.height);
     Game.reset();
-
-    // start/stop handlers
-    document.getElementById('btn-start').addEventListener('click', startCamera);
-    document.getElementById('btn-stop').addEventListener('click', stopCamera);
 
     // expose Game for debug
     window.Game = Game;
