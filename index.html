@@ -3,54 +3,47 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>CamKB — Movable Corners + Game Mode + Thumb Options (Fixed Hands)</title>
+  <title>Camera Invisible Keyboard — Off-keyboard Right-hand Mouse Control</title>
   <style>
     :root{
       --bg:#071020;
+      --panel:#0f1724;
       --muted:#94a3b8;
       --white:#e6eef6;
-      --orange:#ff8a00; /* Right hand (orange) */
-      --blue:#2aa4ff;   /* Left hand (blue) */
-      --handle-bg: rgba(255,255,255,0.06);
-      --handle-border: rgba(255,255,255,0.14);
     }
-    html,body{height:100%;margin:0;font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial;background:linear-gradient(180deg,var(--bg),#020618);color:var(--white)}
-    .app{max-width:1200px;margin:12px auto;padding:14px}
+    html,body{height:100%;margin:0;font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial; background:linear-gradient(180deg,var(--bg),#020618); color:var(--white)}
+    .app{max-width:1200px;margin:10px auto;padding:12px;background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.01)); border-radius:10px;box-shadow:0 6px 30px rgba(0,0,0,0.6)}
     header{display:flex;align-items:center;gap:12px}
     h1{margin:0;font-size:16px}
-    .controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center}
-    button, select, input[type="range"], label{background:transparent;color:var(--white);border:1px solid rgba(255,255,255,0.05);padding:6px 8px;border-radius:8px}
-    button.small{padding:6px 8px}
+    .controls{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+    button, select, label{background:var(--panel);color:var(--white);border:1px solid rgba(255,255,255,0.03);padding:7px 10px;border-radius:8px;cursor:pointer}
+    button.small{padding:6px 8px;font-size:13px}
     .stage{display:flex;gap:12px;margin-top:12px;align-items:flex-start}
-    .video-wrap{position:relative;flex:1;min-width:520px;max-width:1200px;height:680px;background:#000;border-radius:8px;overflow:hidden;border:1px solid rgba(255,255,255,0.03)}
+    .video-wrap{position:relative;flex:1;min-width:480px;max-width:1200px;height:720px;background:#000;border-radius:8px;overflow:hidden;border:1px solid rgba(255,255,255,0.03)}
     video{display:block;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
-    canvas#overlay{position:absolute;left:0;top:0;pointer-events:none;width:100%;height:100%}
-    .handles{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none}
-    .handle{position:absolute;width:18px;height:18px;border-radius:4px;background:var(--handle-bg);border:2px solid var(--handle-border);box-sizing:border-box;pointer-events:auto; touch-action:none; cursor:grab}
-    .handle:active{cursor:grabbing;transform:scale(.98)}
-    .corner-label{position:absolute;background:rgba(0,0,0,0.5);padding:4px 6px;border-radius:6px;font-size:12px;color:var(--muted)}
-    .side{width:360px;min-width:260px}
-    .textbox{width:100%;height:160px;background:#071228;border-radius:8px;padding:10px;color:var(--white);border:1px solid rgba(255,255,255,0.03);resize:vertical;font-size:14px}
+    canvas{position:absolute;left:0;top:0;pointer-events:none;width:100%;height:100%}
+    .side{width:340px;min-width:240px}
+    .textbox{width:100%;height:220px;background:#071228;border-radius:8px;padding:10px;color:var(--white);border:1px solid rgba(255,255,255,0.03);resize:vertical;font-size:15px}
     .hint{color:var(--muted);font-size:13px;margin-top:8px}
-    .row{display:flex;gap:8px;margin-top:8px;align-items:center}
+    .row{display:flex;gap:6px;margin-top:8px;align-items:center}
     .kbd-mode{display:flex;gap:8px;align-items:center}
-    .toast{position:absolute;top:12px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.64);color:#fff;padding:8px 12px;border-radius:8px;font-size:13px;pointer-events:none;opacity:0;transition:opacity .18s}
+    .key-count{font-size:13px;color:var(--muted)}
+    footer{margin-top:10px;color:var(--muted);font-size:13px}
+    .toast{position:absolute;top:12px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.6);color:#fff;padding:8px 12px;border-radius:8px;font-size:13px;pointer-events:none;opacity:0;transition:opacity .18s}
     .toast.show{opacity:1}
-    .cursor{position:absolute;width:18px;height:18px;border-radius:50%;pointer-events:none;transform:translate(-50%,-50%);z-index:40;border:2px solid rgba(255,255,255,0.85);background: rgba(255,255,255,0.03)}
-    .cursor.down{background: rgba(255,255,255,0.18)}
-    #gameCanvas{width:100%;height:260px;background:#071228;border-radius:8px;border:1px solid rgba(255,255,255,0.03);display:block}
-    .sep{height:1px;background:rgba(255,255,255,0.02);margin:10px 0;border-radius:2px}
+    .cursor{position:absolute;width:18px;height:18px;border-radius:50%;pointer-events:none;transform:translate(-50%,-50%);z-index:40;box-shadow:0 0 10px rgba(0,0,0,0.6), inset 0 0 6px rgba(255,255,255,0.02);border:2px solid rgba(255,255,255,0.85);background: rgba(255,255,255,0.03)}
+    .cursor.down{background: rgba(255,255,255,0.18);transform:translate(-50%,-50%) scale(0.92)}
     .legend{font-size:12px;color:var(--muted);margin-top:8px;display:flex;gap:8px;flex-wrap:wrap}
-    .legend .dot{width:12px;height:12px;border-radius:50%;display:inline-block;margin-right:6px}
-    small.note{color:var(--muted);display:block;margin-top:8px}
+    .legend .dot{width:12px;height:12px;border-radius:50%;display:inline-block;margin-right:6px;vertical-align:middle}
+    .option {display:flex;align-items:center;gap:8px}
   </style>
 </head>
 <body>
   <div class="app">
     <header>
       <div>
-        <h1>CamKB — Movable Corners + Game Mode + Thumb Options (Fixed Hands)</h1>
-        <div style="color:var(--muted);font-size:13px">Drag keyboard corners to fit your desk. Switch between Keyboard and Game modes. Select which finger controls the game and what thumb action does.</div>
+        <h1>Invisible Outline Keyboard — Off-keyboard Right-hand Mouse Control</h1>
+        <div style="color:var(--muted);font-size:13px">Right hand controls "global" page mouse when it is off the keyboard area. Pinch = mouse press/drag. (See note about OS cursor limitations below.)</div>
       </div>
     </header>
 
@@ -58,287 +51,142 @@
       <button id="btn-start" class="small">Start Camera</button>
       <button id="btn-stop" class="small" disabled>Stop</button>
       <button id="btn-clear" class="small">Clear Text</button>
-
-      <label>Mode:
-        <select id="mode">
-          <option value="keyboard">Keyboard</option>
-          <option value="game">Game (Flappy)</option>
-        </select>
+      <button id="btn-copy" class="small">Copy</button>
+      <label style="display:flex;align-items:center;gap:6px;color:var(--muted);margin-left:6px">
+        <input id="mirror" type="checkbox" checked /> Mirror
       </label>
-
-      <label>Game control finger:
-        <select id="gameFinger">
-          <option value="index">Index</option>
-          <option value="thumb">Thumb</option>
-          <option value="middle">Middle</option>
-        </select>
+      <label class="option" title="Allow right hand outside keyboard to control the page mouse">
+        <input id="offMouse" type="checkbox" /> Enable off-keyboard mouse (right hand)
       </label>
-
-      <label>Thumb action:
-        <select id="thumbAction">
-          <option value="enter">Enter on triple-wave</option>
-          <option value="space">Space on triple-wave</option>
-          <option value="disabled">Disabled</option>
-        </select>
-      </label>
-
-      <label style="margin-left:auto"><input id="mirror" type="checkbox" checked /> Mirror</label>
+      <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+        <label style="color:var(--muted)">Tap velocity</label>
+        <input id="vel" type="range" min="2" max="40" value="10" />
+      </div>
     </div>
 
     <div class="stage">
-      <div class="video-wrap" id="videoWrap" aria-live="polite">
+      <div class="video-wrap" id="videoWrap">
         <video id="video" autoplay muted playsinline></video>
         <canvas id="overlay"></canvas>
-
-        <!-- draggable corner handles -->
-        <div class="handles" id="handles">
-          <div id="h-tl" class="handle" title="Top-left"></div>
-          <div id="h-tr" class="handle" title="Top-right"></div>
-          <div id="h-br" class="handle" title="Bottom-right"></div>
-          <div id="h-bl" class="handle" title="Bottom-left"></div>
-          <div id="cornerLabel" class="corner-label" style="right:12px;bottom:12px">Drag corners to fit keyboard</div>
-        </div>
-
         <div id="toast" class="toast" aria-hidden="true"></div>
-        <div id="cursor" class="cursor" style="left:50%;top:50%;"></div>
+        <div id="cursor" class="cursor" style="left:50%;top:50%"></div>
       </div>
 
       <div class="side">
-        <textarea id="typed" class="textbox" placeholder="Typed text will appear here..." readonly></textarea>
+        <div>
+          <textarea id="typed" class="textbox" placeholder="Typed text will appear here..." readonly></textarea>
+          <div class="hint">Index = type hovered key / move mouse. Middle = backspace. Thumb = Enter. Right-hand outside keyboard = control page mouse (pinch to click/drag). Pinch both = cycle layout.</div>
 
-        <div class="row">
-          <button id="btn-save">Save text</button>
-          <button id="btn-load">Load</button>
-          <button id="btn-download">Download page</button>
+          <div class="legend">
+            <div><span class="dot" style="background:#ff8a00"></span> Left (orange)</div>
+            <div><span class="dot" style="background:#2aa4ff"></span> Right (blue)</div>
+          </div>
+
+          <div class="row" style="margin-top:8px">
+            <div class="kbd-mode">
+              <label class="key-count">Layout:</label>
+              <select id="layout">
+                <option value="qwerty">QWERTY</option>
+                <option value="numeric">Numeric</option>
+                <option value="symbols">Symbols</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="row">
+            <button id="btn-save">Save</button>
+            <button id="btn-load">Load</button>
+            <button id="btn-download">Download</button>
+          </div>
+
         </div>
-
-        <div class="sep"></div>
-
-        <canvas id="gameCanvas" width="480" height="260"></canvas>
-        <div class="row" style="margin-top:6px">
-          <button id="gameStart">Start Game</button>
-          <button id="gameReset">Reset</button>
-          <div style="margin-left:auto;color:var(--muted)">Score: <span id="gameScore">0</span></div>
-        </div>
-
-        <div class="legend">
-          <div><span class="dot" style="background:var(--orange)"></span> Right hand (orange)</div>
-          <div><span class="dot" style="background:var(--blue)"></span> Left hand (blue)</div>
-        </div>
-
-        <small class="note">Tip: in Game mode the selected finger triggers a flap. Thumb triple-wave can be set to Enter/Space/Disabled using the dropdown above.</small>
       </div>
     </div>
 
-    <footer style="margin-top:12px;color:var(--muted)">Movable corners persist in localStorage. Game is in-page only. For OS cursor control you still need the extension/native host bridge (not included here).</footer>
+    <footer>
+      Note: Browsers do not let web pages move the operating system mouse cursor. This implementation maps your right-hand position to the page/window coordinates and dispatches synthetic mouse events (mousemove/mousedown/mouseup/click) so the page behaves as if you moved the mouse. To control the OS cursor outside the browser page you would need a small native helper or a browser extension with native messaging — I can help build that if you want.
+    </footer>
   </div>
 
-  <!-- MediaPipe scripts -->
+  <!-- MediaPipe -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
 
   <script>
-  // TIP indices
+  // Tip indices
   const TIP = { THUMB:4, INDEX:8, MIDDLE:12 };
 
   (function(){
-    // DOM
     const video = document.getElementById('video');
     const canvas = document.getElementById('overlay');
     const ctx = canvas.getContext('2d');
-    const videoWrap = document.getElementById('videoWrap');
+    const cursorEl = document.getElementById('cursor');
+    const toastEl = document.getElementById('toast');
+
     const startBtn = document.getElementById('btn-start');
     const stopBtn = document.getElementById('btn-stop');
+    const copyBtn = document.getElementById('btn-copy');
+    const clearBtn = document.getElementById('btn-clear');
     const typed = document.getElementById('typed');
+    const velRange = document.getElementById('vel');
     const mirrorToggle = document.getElementById('mirror');
-    const modeSelect = document.getElementById('mode');
-    const gameFingerSel = document.getElementById('gameFinger');
-    const thumbActionSel = document.getElementById('thumbAction');
-    const toastEl = document.getElementById('toast');
-    const cursorEl = document.getElementById('cursor');
+    const layoutSelect = document.getElementById('layout');
+    const offMouseCheckbox = document.getElementById('offMouse');
 
-    // handles
-    const handlesWrap = document.getElementById('handles');
-    const handleTL = document.getElementById('h-tl');
-    const handleTR = document.getElementById('h-tr');
-    const handleBR = document.getElementById('h-br');
-    const handleBL = document.getElementById('h-bl');
-
-    // game elements
-    const gameCanvas = document.getElementById('gameCanvas');
-    const gctx = gameCanvas.getContext('2d');
-    const gameStartBtn = document.getElementById('gameStart');
-    const gameResetBtn = document.getElementById('gameReset');
-    const gameScoreEl = document.getElementById('gameScore');
-
-    // state
     let camera = null;
     let hands = null;
-    let lastPointer = {x:100,y:100};
-    let mouseDown = false;
-    let keyboardArea = null; // object with four corners stored as normalized (0..1) relative to canvas
-    let draggingHandle = null;
-    let dragOffset = {x:0,y:0};
-    const STORAGE_KEY = 'camkb_corners_v2';
+    let keyboardArea = null;
+    let pinchBothLast = 0;
 
-    // per-hand state
-    function makeHandState(){
-      return {
-        fingers: {
-          thumb:{lastX:null,lastY:null,lastTs:null,lastHoveredKey:null,lastTapTs:0,waveCount:0,lastWaveDir:null,lastWaveTime:0,lastWaveFired:0},
-          index:{lastY:null,lastTs:null,lastHoveredKey:null,lastTapTs:0},
-          middle:{lastY:null,lastTs:null,lastHoveredKey:null,lastTapTs:0}
-        },
-        isPinched:false
-      };
-    }
-    const handState = { Left: makeHandState(), Right: makeHandState() };
-
-    // Colors: orange = Right, blue = Left (user requested this swap)
-    const COLORS = { Right: {fill: '#ff8a00', stroke:'#ffb480'}, Left: {fill:'#2aa4ff', stroke:'#8fd7ff'} };
-
-    // default keyboard rectangle if none saved (normalized coords)
-    function defaultCorners(){
-      return {
-        tl: {x:0.04, y:0.58},
-        tr: {x:0.96, y:0.58},
-        br: {x:0.96, y:0.94},
-        bl: {x:0.04, y:0.94}
-      };
-    }
-
-    // load or initialize corners
-    function loadCorners(){
-      try{
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if(raw){
-          return JSON.parse(raw);
-        }
-      }catch(e){}
-      return defaultCorners();
-    }
-    let corners = loadCorners();
-
-    function saveCorners(){
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(corners));
-    }
-
-    // convert normalized to canvas pixels
-    function cornersToPixels(){
-      return {
-        tl: {x: corners.tl.x * canvas.width, y: corners.tl.y * canvas.height},
-        tr: {x: corners.tr.x * canvas.width, y: corners.tr.y * canvas.height},
-        br: {x: corners.br.x * canvas.width, y: corners.br.y * canvas.height},
-        bl: {x: corners.bl.x * canvas.width, y: corners.bl.y * canvas.height}
-      };
-    }
-
-    // compute keyboardArea bounding box from corners (axis-aligned)
-    function keyboardAreaFromCorners(){
-      const px = cornersToPixels();
-      const minX = Math.min(px.tl.x, px.tr.x, px.br.x, px.bl.x);
-      const maxX = Math.max(px.tl.x, px.tr.x, px.br.x, px.bl.x);
-      const minY = Math.min(px.tl.y, px.tr.y, px.br.y, px.bl.y);
-      const maxY = Math.max(px.tl.y, px.tr.y, px.br.y, px.bl.y);
-      return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
-    }
-
-    function fitCanvas(){
-      const rect = videoWrap.getBoundingClientRect();
-      canvas.width = rect.width;
-      canvas.height = rect.height;
-      positionHandles();
-    }
-    window.addEventListener('resize', fitCanvas);
-    fitCanvas();
-
-    // position handle DOM elements to match corners
-    function positionHandles(){
-      const px = cornersToPixels();
-      handleTL.style.left = (px.tl.x - 9) + 'px'; handleTL.style.top = (px.tl.y - 9) + 'px';
-      handleTR.style.left = (px.tr.x - 9) + 'px'; handleTR.style.top = (px.tr.y - 9) + 'px';
-      handleBR.style.left = (px.br.x - 9) + 'px'; handleBR.style.top = (px.br.y - 9) + 'px';
-      handleBL.style.left = (px.bl.x - 9) + 'px'; handleBL.style.top = (px.bl.y - 9) + 'px';
-    }
-
-    // attach pointer events to handles for dragging
-    function makeDraggable(handle, cornerKey){
-      handle.addEventListener('pointerdown', (ev)=>{
-        ev.preventDefault();
-        draggingHandle = cornerKey;
-        handle.setPointerCapture(ev.pointerId);
-        dragOffset.x = ev.offsetX; dragOffset.y = ev.offsetY;
-      });
-      handle.addEventListener('pointermove', (ev)=>{
-        if(!draggingHandle) return;
-        const rect = canvas.getBoundingClientRect();
-        let nx = (ev.clientX - rect.left) / rect.width;
-        let ny = (ev.clientY - rect.top) / rect.height;
-        nx = Math.max(0, Math.min(1, nx));
-        ny = Math.max(0, Math.min(1, ny));
-        corners[cornerKey].x = nx;
-        corners[cornerKey].y = ny;
-        saveCorners();
-        positionHandles();
-      });
-      handle.addEventListener('pointerup', (ev)=>{
-        draggingHandle = null;
-        try{ handle.releasePointerCapture(ev.pointerId); }catch(e){}
-      });
-      handle.addEventListener('pointercancel', ()=>{ draggingHandle = null; });
-    }
-
-    makeDraggable(handleTL, 'tl');
-    makeDraggable(handleTR, 'tr');
-    makeDraggable(handleBR, 'br');
-    makeDraggable(handleBL, 'bl');
-
-    // small toast helper
-    function showToast(msg, ms=900){
-      toastEl.textContent = msg;
-      toastEl.classList.add('show');
-      toastEl.setAttribute('aria-hidden','false');
-      clearTimeout(toastEl._t);
-      toastEl._t = setTimeout(()=>{ toastEl.classList.remove('show'); toastEl.setAttribute('aria-hidden','true'); }, ms);
-    }
-
-    // keyboard drawing: outlines (aligns to axis-aligned bounding of corners)
-    function drawKeyboardOutline(){
-      if(!canvas.width || !canvas.height) return;
-      const area = keyboardAreaFromCorners();
-      const L = [
+    const layouts = {
+      qwerty: [
         "qwertyuiop".split(''),
         "asdfghjkl".split(''),
         "zxcvbnm".split(''),
         ["Space"]
-      ];
-      const rows = L.length;
-      const rowH = area.h / rows;
-      for(let r=0;r<rows;r++){
-        const row = L[r];
-        const cols = row.length;
-        const padding = Math.max(6, area.w * 0.01);
-        const keyW = (area.w - (cols+1)*padding) / cols;
-        for(let c=0;c<cols;c++){
-          const kx = area.x + padding + c*(keyW + padding);
-          const ky = area.y + r*rowH + padding/1.5;
-          const kw = (r === rows-1 && row[0] === "Space") ? area.w - padding*2 : keyW;
-          const kh = rowH - padding*1.5;
-          ctx.lineWidth = 1.2;
-          ctx.strokeStyle = 'rgba(230,238,246,0.22)';
-          roundRect(ctx, kx, ky, kw, kh, 8, false, true);
-          ctx.fillStyle = 'rgba(230,238,246,0.12)';
-          ctx.font = `${Math.max(12, kh*0.38)}px system-ui`;
-          ctx.textAlign = "center"; ctx.textBaseline = "middle";
-          ctx.fillText(row[c], kx + kw/2, ky + kh/2);
-        }
-      }
-    }
+      ],
+      numeric: [
+        ["1","2","3","4","5"],
+        ["6","7","8","9","0"],
+        ["-","/",".","Enter"]
+      ],
+      symbols: [
+        ["!","@","#","$","%","^","&","*","(",")"],
+        ["_","+","{","}","[","]","|",";",":"],
+        ["'",'"',",",".","?","/","\\"]
+      ]
+    };
 
-    // helper roundRect
+    const COLORS = { Left:{fill:'#ff8a00',stroke:'#ffb480'}, Right:{fill:'#2aa4ff',stroke:'#8fd7ff'} };
+    function makeHandState(){ return {
+      fingers: {
+        thumb:{lastY:null,lastTs:null,lastHoveredKey:null,lastTapTs:0},
+        index:{lastY:null,lastTs:null,lastHoveredKey:null,lastTapTs:0},
+        middle:{lastY:null,lastTs:null,lastHoveredKey:null,lastTapTs:0}
+      },
+      isPinched:false
+    }; }
+    const handState = { Left: makeHandState(), Right: makeHandState() };
+
+    // mouse state
+    let mouseDown = false;
+    let mouseDownTarget = null;
+    let lastPointer = {x: canvas.width/2, y: canvas.height/2};
+    let pointerHand = null;
+
+    function fitCanvas(){
+      const wrap = document.getElementById('videoWrap');
+      canvas.width = wrap.clientWidth;
+      canvas.height = wrap.clientHeight;
+      // keyboard occupies bottom 45% of canvas by default; top area is "desktop/mouse control" region
+      keyboardArea = { x: canvas.width * 0.02, y: canvas.height * 0.55, w: canvas.width * 0.96, h: canvas.height * 0.43 };
+    }
+    window.addEventListener('resize', fitCanvas);
+    fitCanvas();
+
     function roundRect(ctx, x, y, w, h, r, fill, stroke){
-      if(typeof r === 'undefined') r = 6;
+      if(typeof r === 'undefined') r = 5;
       if(typeof r === 'number') r = {tl:r,tr:r,br:r,bl:r};
       ctx.beginPath();
       ctx.moveTo(x + r.tl, y);
@@ -355,354 +203,328 @@
       if(stroke) ctx.stroke();
     }
 
-    // get key at x,y within keyboard area (axis-aligned)
-    function getKeyAt(x,y){
-      const area = keyboardAreaFromCorners();
-      const relX = x - area.x, relY = y - area.y;
-      if(relX < 0 || relY < 0 || relX > area.w || relY > area.h) return null;
-      const L = [
-        "qwertyuiop".split(''),
-        "asdfghjkl".split(''),
-        "zxcvbnm".split(''),
-        ["Space"]
-      ];
+    function drawKeyboard(){
+      const L = layouts[layoutSelect.value] || layouts.qwerty;
+      ctx.save();
+      // keyboard outlines only
       const rows = L.length;
-      const rowH = area.h / rows;
+      const rowH = keyboardArea.h / rows;
+      for(let r=0;r<rows;r++){
+        const row = L[r];
+        const cols = row.length;
+        const padding = 6;
+        const keyW = (keyboardArea.w - (cols+1)*padding) / cols;
+        for(let c=0;c<cols;c++){
+          const kx = keyboardArea.x + padding + c*(keyW + padding);
+          const ky = keyboardArea.y + r*rowH + padding/1.5;
+          const kw = (r === rows-1 && row[0] === "Space") ? keyboardArea.w - padding*2 : keyW;
+          const kh = rowH - padding*1.5;
+          const label = row[c];
+          ctx.lineWidth = 1.2;
+          ctx.strokeStyle = 'rgba(230,238,246,0.22)';
+          roundRect(ctx, kx, ky, kw, kh, 8, false, true);
+          ctx.fillStyle = 'rgba(230,238,246,0.18)';
+          ctx.font = `${Math.max(12, kh*0.4)}px system-ui`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(label, kx + kw/2, ky + kh/2);
+        }
+      }
+      ctx.restore();
+    }
+
+    function getKeyAt(x,y){
+      if(!keyboardArea) return null;
+      const L = layouts[layoutSelect.value] || layouts.qwerty;
+      const relX = x - keyboardArea.x;
+      const relY = y - keyboardArea.y;
+      if(relX < 0 || relY < 0 || relX > keyboardArea.w || relY > keyboardArea.h) return null;
+      const rows = L.length;
+      const rowH = keyboardArea.h / rows;
       const r = Math.floor(relY / rowH);
       const row = L[r];
       const cols = row.length;
-      const padding = Math.max(6, area.w * 0.01);
-      const keyW = (area.w - (cols+1)*padding) / cols;
+      const padding = 6;
+      const keyW = (keyboardArea.w - (cols+1)*padding) / cols;
       for(let c=0;c<cols;c++){
         const kx = padding + c*(keyW + padding);
         const ky = r*rowH + padding/1.5;
-        const kw = (r === rows-1 && row[0] === "Space") ? area.w - padding*2 : keyW;
+        const kw = (r === rows-1 && row[0] === "Space") ? keyboardArea.w - padding*2 : keyW;
         const kh = rowH - padding*1.5;
-        if(relX >= kx && relX <= kx+kw && relY >= ky && relY <= ky+kh){
-          return {row:r,col:c,label:row[c],keyX:area.x+kx,keyY:area.y+ky,keyW:kw,keyH:kh};
+        if(relX >= kx && relX <= kx + kw && relY >= ky && relY <= ky + kh){
+          return {row:r,col:c,label:row[c],keyX:keyboardArea.x + kx, keyY:keyboardArea.y + ky, keyW:kw, keyH:kh};
         }
       }
       return null;
     }
 
-    // game: simple Flappy Bird clone (in-page)
-    const Game = (function(){
-      let w = gameCanvas.width, h = gameCanvas.height;
-      let birdY = h/2, birdV = 0;
-      let gravity = 0.6, flapV = -10;
-      let pipes = [];
-      let frame = 0, score = 0, running = false;
-      let gap = 80, pipeW = 48, pipeInterval = 110;
-      let onScore = ()=>{};
-      function reset(){
-        w = gameCanvas.width; h = gameCanvas.height;
-        birdY = h/2; birdV = 0; pipes = []; frame = 0; score = 0; running = false;
-        updateScore();
-        draw();
-      }
-      function start(){ running = true; loop(); }
-      function loop(){
-        if(!running) return;
-        update();
-        draw();
-        requestAnimationFrame(loop);
-      }
-      function update(){
-        frame++;
-        birdV += gravity;
-        birdY += birdV;
-        if(frame % pipeInterval === 0){
-          const top = 20 + Math.random()*(h - gap - 80);
-          pipes.push({x:w + 10, top, passed:false});
-        }
-        pipes.forEach(p=>{
-          p.x -= 2.4;
-          if(!p.passed && p.x + pipeW < 60){ p.passed = true; score++; updateScore(); }
-        });
-        pipes = pipes.filter(p=>p.x + pipeW > -20);
-        if(birdY > h || birdY < 0) end();
-        for(const p of pipes){
-          const bx = 60, by = birdY;
-          if(bx + 12 > p.x && bx - 12 < p.x + pipeW){
-            if(by - 12 < p.top || by + 12 > p.top + gap){
-              end(); break;
-            }
-          }
-        }
-      }
-      function draw(){
-        gctx.clearRect(0,0,w,h);
-        gctx.fillStyle = '#051024'; gctx.fillRect(0,0,w,h);
-        gctx.fillStyle = '#17a2ff';
-        pipes.forEach(p=>{
-          gctx.fillRect(p.x, 0, pipeW, p.top);
-          gctx.fillRect(p.x, p.top + gap, pipeW, h - (p.top + gap));
-        });
-        gctx.fillStyle = '#ffd166';
-        gctx.beginPath(); gctx.arc(60, birdY, 12, 0, Math.PI*2); gctx.fill();
-        gctx.fillStyle = '#ffffff'; gctx.font = '18px system-ui'; gctx.fillText('Score: '+score, 8, 20);
-      }
-      function flap(){ if(!running) return; birdV = flapV; }
-      function end(){ running = false; showToast('Game Over — score '+score, 1200); }
-      function updateScore(){ gameScoreEl.textContent = score; }
-      function isRunning(){ return running; }
-      return { reset, start, flap, end, isRunning };
-    })();
+    function registerKey(k){ if(!k) return; const label = k.label; if(label === "Space") typed.value += " "; else if(label === "Enter") typed.value += "\n"; else typed.value += label; pulseCursor(); }
+    function doBackspace(){ typed.value = typed.value.slice(0,-1); pulseCursor(); }
+    function pulseCursor(){ cursorEl.classList.add('down'); setTimeout(()=>cursorEl.classList.remove('down'), 140); }
 
-    // map normalized coords to page coords for OS cursor extension messages (not implemented here)
-    function postPointerMessage(nx, ny, down){
-      window.postMessage({ type: 'CAMKB_MOUSE', x: nx, y: ny, down: down }, '*');
-    }
+    function showToast(msg, ms=900){ toastEl.textContent = msg; toastEl.classList.add('show'); toastEl.setAttribute('aria-hidden','false'); clearTimeout(toastEl._t); toastEl._t = setTimeout(()=>{ toastEl.classList.remove('show'); toastEl.setAttribute('aria-hidden','true'); }, ms); }
 
-    // Thumb triple-wave detector (left-right oscillation)
-    function processThumbWaves(handName, thumbPos){
-      const state = handState[handName].fingers.thumb;
-      const now = performance.now();
-      const ampThreshold = Math.max(12, Math.min(60, Math.max(canvas.width, canvas.height) * 0.02));
-      if(state.lastX === null){ state.lastX = thumbPos.x; state.lastTs = now; return; }
-      const dx = thumbPos.x - state.lastX;
-      const dir = dx > ampThreshold ? 1 : (dx < -ampThreshold ? -1 : 0);
-      if(dir !== 0 && state.lastWaveDir === null){
-        state.lastWaveDir = dir; state.lastWaveTime = now;
-      } else if(dir !== 0 && dir !== state.lastWaveDir){
-        state.waveCount = (state.waveCount || 0) + 1;
-        state.lastWaveDir = dir; state.lastWaveTime = now;
-      } else {
-        if(now - state.lastWaveTime > 1800){
-          state.waveCount = 0; state.lastWaveDir = null; state.lastWaveTime = now;
-        }
-      }
-      state.lastX = thumbPos.x; state.lastTs = now;
-      if((state.waveCount || 0) >= 3 && (now - (state.lastWaveFired || 0)) > 1300){
-        const action = thumbActionSel.value; // enter/space/disabled
-        if(action === 'enter') typed.value += '\n';
-        else if(action === 'space') typed.value += ' ';
-        state.waveCount = 0; state.lastWaveDir = null; state.lastWaveFired = now;
-        showToast('Thumb gesture: ' + action.toUpperCase(), 900);
-      }
-    }
-
-    // utility: send synthetic mouse events inside page area (for in-page interactions)
-    function clientFromCanvas(xCanvas, yCanvas){
-      const rect = canvas.getBoundingClientRect();
-      return { clientX: rect.left + xCanvas, clientY: rect.top + yCanvas };
-    }
-    function dispatchMouseEvent(type, xCanvas, yCanvas){
-      const { clientX, clientY } = clientFromCanvas(xCanvas, yCanvas);
-      const target = document.elementFromPoint(clientX, clientY);
+    // synthetic events helpers
+    function dispatchPageMouseEvent(type, clientX, clientY, targetOverride){
+      const target = targetOverride || document.elementFromPoint(clientX, clientY);
       if(!target) return null;
-      const ev = new MouseEvent(type, { bubbles:true, cancelable:true, view:window, clientX, clientY, button: 0 });
+      const ev = new MouseEvent(type, {bubbles:true,cancelable:true,view:window,clientX,clientY,button:0});
       target.dispatchEvent(ev);
       return target;
     }
 
-    // Build a consistent hands list (handedness + landmarks)
-    function handsListFromResults(results){
-      const out = [];
-      if(!results.multiHandLandmarks) return out;
-      for(let i=0;i<results.multiHandLandmarks.length;i++){
-        const landmarks = results.multiHandLandmarks[i];
-        const handed = (results.multiHandedness && results.multiHandedness[i] && results.multiHandedness[i].label) ? results.multiHandedness[i].label : (i===0 ? 'Right' : 'Left');
-        out.push({ landmarks, handed });
-      }
-      return out;
+    // Map canvas coords (indexPos) to page/window client coordinates for "global-like" control.
+    // We map relative to the full window size so right-hand movement over the camera view translates to cursor movement across the page window.
+    // This only affects the webpage (document.elementFromPoint) — it cannot move the OS cursor.
+    function mapCanvasToWindowClient(xCanvas, yCanvas){
+      // normalized canvas coords
+      const nx = xCanvas / canvas.width;
+      const ny = yCanvas / canvas.height;
+      // choose mapping: full window.innerWidth/innerHeight
+      const clientX = Math.round(nx * window.innerWidth);
+      const clientY = Math.round(ny * window.innerHeight);
+      return { clientX, clientY };
     }
 
-    // main onResults handler (MediaPipe)
+    // Called each frame to update synthetic pointer & mouse interactions
+    function updatePointerAndMouse(now){
+      // move synthetic cursor element to canvas-local coordinates (visual)
+      const x = Math.max(0, Math.min(canvas.width, lastPointer.x));
+      const y = Math.max(0, Math.min(canvas.height, lastPointer.y));
+      cursorEl.style.left = x + 'px';
+      cursorEl.style.top = y + 'px';
+
+      const offMouseEnabled = offMouseCheckbox.checked;
+
+      // if right-hand is controlling global mouse (we set pointerHand), and pointer is outside keyboard area and offMouseEnabled,
+      // map to global page coordinates and dispatch events there.
+      if(pointerHand === 'Right' && offMouseEnabled && !getKeyAt(lastPointer.x, lastPointer.y)){
+        const { clientX, clientY } = mapCanvasToWindowClient(lastPointer.x, lastPointer.y);
+
+        // if pinch (mouseDown) started on this off-keyboard mode, dispatch mousedown/move/up with mapped coordinates
+        const pointerPinched = handState.Right.isPinched;
+
+        if(pointerPinched && !mouseDown){
+          mouseDown = true;
+          mouseDownTarget = dispatchPageMouseEvent('mousedown', clientX, clientY);
+          cursorEl.classList.add('down');
+        }
+        if(pointerPinched && mouseDown){
+          dispatchPageMouseEvent('mousemove', clientX, clientY, mouseDownTarget);
+        }
+        if(!pointerPinched && mouseDown){
+          dispatchPageMouseEvent('mouseup', clientX, clientY, mouseDownTarget);
+          dispatchPageMouseEvent('click', clientX, clientY, mouseDownTarget);
+          mouseDown = false; mouseDownTarget = null; cursorEl.classList.remove('down');
+        }
+      } else {
+        // If not in off-keyboard global control, fall back to canvas-local synthetic events (within page area near canvas)
+        const clientPoint = clientFromCanvas(lastPointer.x, lastPointer.y);
+        const pointerPinched = (pointerHand && handState[pointerHand]) ? handState[pointerHand].isPinched : false;
+
+        if(pointerPinched && !mouseDown){
+          mouseDown = true;
+          mouseDownTarget = dispatchPageMouseEvent('mousedown', clientPoint.clientX, clientPoint.clientY);
+          cursorEl.classList.add('down');
+        }
+        if(pointerPinched && mouseDown){
+          dispatchPageMouseEvent('mousemove', clientPoint.clientX, clientPoint.clientY, mouseDownTarget);
+        }
+        if(!pointerPinched && mouseDown){
+          dispatchPageMouseEvent('mouseup', clientPoint.clientX, clientPoint.clientY, mouseDownTarget);
+          dispatchPageMouseEvent('click', clientPoint.clientX, clientPoint.clientY, mouseDownTarget);
+          mouseDown = false; mouseDownTarget = null; cursorEl.classList.remove('down');
+        }
+      }
+    }
+
+    function clientFromCanvas(xCanvas, yCanvas){
+      const rect = canvas.getBoundingClientRect();
+      return { clientX: rect.left + xCanvas, clientY: rect.top + yCanvas };
+    }
+
+    // Process MediaPipe results
     function onResults(results){
       fitCanvas();
       ctx.clearRect(0,0,canvas.width,canvas.height);
+
+      // faint overlay for contrast, then keyboard outlines
       ctx.save(); ctx.globalAlpha = 0.06; ctx.fillStyle = '#000'; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.restore();
-      drawKeyboardOutline();
+      drawKeyboard();
 
-      const handsList = handsListFromResults(results);
-      if(handsList.length){
-        console.debug('hands detected:', handsList.length);
-      }
+      // default pointer fallback: lastPointer stays where it was
+      let pointerX = lastPointer.x, pointerY = lastPointer.y;
+      pointerHand = null;
 
-      // if no hands, return
-      if(handsList.length === 0) return;
-
-      const now = performance.now();
-
-      // process each hand uniformly
-      for(const hp of handsList){
-        const landmarks = hp.landmarks;
-        const handed = hp.handed;
-        const state = handState[handed];
-
-        // helper pos
-        const pos = (idx) => { let x = landmarks[idx].x * canvas.width, y = landmarks[idx].y * canvas.height; if(mirrorToggle.checked) x = canvas.width - x; return {x,y}; };
-
-        const thumbPos = pos(TIP.THUMB);
-        const indexPos = pos(TIP.INDEX);
-        const middlePos = pos(TIP.MIDDLE);
-
-        // draw hand debug
-        const col = COLORS[handed] || { fill:'#fff', stroke:'#fff' };
-        drawConnectors(ctx, landmarks, HAND_CONNECTIONS, { color: col.stroke, lineWidth: 2 });
-        drawLandmarks(ctx, landmarks, { color: col.fill, lineWidth: 1, radius: 2 });
-
-        ctx.beginPath(); ctx.fillStyle = col.fill; ctx.arc(indexPos.x, indexPos.y, 9, 0, Math.PI*2); ctx.fill();
-        ctx.beginPath(); ctx.fillStyle = col.fill; ctx.arc(thumbPos.x, thumbPos.y, 8, 0, Math.PI*2); ctx.fill();
-        ctx.beginPath(); ctx.fillStyle = col.fill; ctx.arc(middlePos.x, middlePos.y, 8, 0, Math.PI*2); ctx.fill();
-
-        // hovered keys
-        const hoveredIndex = getKeyAt(indexPos.x, indexPos.y);
-        const hoveredMid = getKeyAt(middlePos.x, middlePos.y);
-        const hoveredThumb = getKeyAt(thumbPos.x, thumbPos.y);
-        if(hoveredIndex) state.fingers.index.lastHoveredKey = {...hoveredIndex};
-        if(hoveredMid) state.fingers.middle.lastHoveredKey = {...hoveredMid};
-        if(hoveredThumb) state.fingers.thumb.lastHoveredKey = {...hoveredThumb};
-
-        if(hoveredIndex){
-          ctx.save(); ctx.lineWidth = 2.4; ctx.strokeStyle = col.fill; roundRect(ctx, hoveredIndex.keyX, hoveredIndex.keyY, hoveredIndex.keyW, hoveredIndex.keyH, 8, false, true); ctx.restore();
+      if(results.multiHandLandmarks && results.multiHandLandmarks.length){
+        const now = performance.now();
+        const handsPresent = [];
+        for(let i=0;i<results.multiHandLandmarks.length;i++){
+          const landmarks = results.multiHandLandmarks[i];
+          const handed = (results.multiHandedness && results.multiHandedness[i] && results.multiHandedness[i].label) ? results.multiHandedness[i].label : (i===0 ? 'Right' : 'Left');
+          handsPresent.push({landmarks, handed});
         }
 
-        // per-finger processing
-        function processFinger(fname, posObj){
-          const f = state.fingers[fname];
-          const now = performance.now();
-          if(fname === 'thumb'){
-            processThumbWaves(handed, posObj);
+        // prefer right hand for pointer control
+        const chosen = handsPresent.find(h=>h.handed==='Right') || handsPresent[0];
+
+        for(const hp of handsPresent){
+          const landmarks = hp.landmarks;
+          const handed = hp.handed;
+          const state = handState[handed];
+
+          // compute bounding size for pinch threshold
+          let minX=1,minY=1,maxX=0,maxY=0;
+          for(const p of landmarks){ minX = Math.min(minX, p.x); minY = Math.min(minY, p.y); maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y); }
+          const handBox = Math.max((maxX-minX)*canvas.width, (maxY-minY)*canvas.height);
+
+          function pos(i){ let x = landmarks[i].x * canvas.width; let y = landmarks[i].y * canvas.height; if(mirrorToggle.checked) x = canvas.width - x; return {x,y}; }
+          const thumbPos = pos(TIP.THUMB);
+          const indexPos = pos(TIP.INDEX);
+          const middlePos = pos(TIP.MIDDLE);
+
+          // draw hand, colored
+          const col = COLORS[handed] || {fill:'#fff',stroke:'#fff'};
+          drawConnectors(ctx, landmarks, HAND_CONNECTIONS, {color: col.stroke, lineWidth:2});
+          drawLandmarks(ctx, landmarks, {color: col.fill, lineWidth:1, radius:2});
+          ctx.beginPath(); ctx.fillStyle = hexToRgba(col.fill, 0.96); ctx.arc(indexPos.x, indexPos.y, 9, 0, Math.PI*2); ctx.fill();
+          ctx.beginPath(); ctx.fillStyle = hexToRgba(col.fill, 0.6); ctx.arc(middlePos.x, middlePos.y, 8, 0, Math.PI*2); ctx.fill();
+          ctx.beginPath(); ctx.fillStyle = hexToRgba(col.fill, 0.72); ctx.arc(thumbPos.x, thumbPos.y, 8, 0, Math.PI*2); ctx.fill();
+
+          // update hovered keys
+          const hoveredIdx = getKeyAt(indexPos.x, indexPos.y);
+          const hoveredMid = getKeyAt(middlePos.x, middlePos.y);
+          const hoveredThumb = getKeyAt(thumbPos.x, thumbPos.y);
+          if(hoveredIdx) state.fingers.index.lastHoveredKey = {...hoveredIdx};
+          if(hoveredMid) state.fingers.middle.lastHoveredKey = {...hoveredMid};
+          if(hoveredThumb) state.fingers.thumb.lastHoveredKey = {...hoveredThumb};
+
+          // highlight hovered key stroke
+          if(hoveredIdx){
+            ctx.save();
+            ctx.lineWidth = 2.4;
+            ctx.strokeStyle = hexToRgba(col.fill, 0.98);
+            roundRect(ctx, hoveredIdx.keyX, hoveredIdx.keyY, hoveredIdx.keyW, hoveredIdx.keyH, 8, false, true);
+            ctx.restore();
+          }
+
+          // per-finger major movement detection (index: type, middle: backspace, thumb: enter/space)
+          function processFinger(fname, posObj){
+            const f = state.fingers[fname];
+            const now = performance.now();
             if(f.lastY !== null && f.lastTs !== null){
               const dt = Math.max(1, now - f.lastTs);
               const dy = posObj.y - f.lastY;
               const velocity = (dy / dt) * 1000;
-              const velThreshold = parseFloat(document.getElementById('vel').value) * 60;
+              const velThreshold = parseFloat(velRange.value) * 60;
               if(Math.abs(velocity) > velThreshold && (now - f.lastTapTs) > 320){
-                if(f.lastHoveredKey && f.lastHoveredKey.label === 'Space'){
-                  typed.value += ' ';
-                  f.lastTapTs = now;
-                }
-              }
-            }
-            f.lastY = posObj.y; f.lastTs = now;
-          } else {
-            if(f.lastY !== null && f.lastTs !== null){
-              const dt = Math.max(1, now - f.lastTs);
-              const dy = posObj.y - f.lastY;
-              const velocity = (dy / dt) * 1000;
-              const velThreshold = parseFloat(document.getElementById('vel').value) * 60;
-              if(Math.abs(velocity) > velThreshold && (now - f.lastTapTs) > 320){
-                if(modeSelect.value === 'keyboard'){
-                  if(fname === 'index'){ if(f.lastHoveredKey) typed.value += (f.lastHoveredKey.label === 'Space' ? ' ' : (f.lastHoveredKey.label === 'Enter' ? '\n' : f.lastHoveredKey.label)); }
-                  else if(fname === 'middle'){ typed.value = typed.value.slice(0,-1); }
-                } else if(modeSelect.value === 'game'){
-                  const gf = gameFingerSel.value;
-                  if(gf === fname && Game.isRunning()){
-                    Game.flap();
-                  }
+                if(fname === 'index'){
+                  if(f.lastHoveredKey) registerKey(f.lastHoveredKey);
+                } else if(fname === 'middle'){
+                  doBackspace();
+                } else if(fname === 'thumb'){
+                  if(f.lastHoveredKey && f.lastHoveredKey.label === 'Space') registerKey(f.lastHoveredKey);
+                  else typed.value += "\n";
                 }
                 f.lastTapTs = now;
               }
             }
             f.lastY = posObj.y; f.lastTs = now;
           }
+
+          processFinger('index', indexPos);
+          processFinger('middle', middlePos);
+          processFinger('thumb', thumbPos);
+
+          // pinch detection per-hand
+          const dx = thumbPos.x - indexPos.x;
+          const dy = thumbPos.y - indexPos.y;
+          const dist = Math.hypot(dx, dy);
+          const pinchThreshold = Math.max(22, handBox * 0.10);
+          const wasPinched = state.isPinched;
+          state.isPinched = dist < pinchThreshold;
+          if(state.isPinched && !wasPinched){ /* pinch started */ }
         }
 
-        processFinger('index', indexPos);
-        processFinger('middle', middlePos);
-        processFinger('thumb', thumbPos);
+        // choose pointer coords from chosen hand's index
+        if(chosen){
+          const chosenIdx = chosen.landmarks[TIP.INDEX];
+          let x = chosenIdx.x * canvas.width;
+          let y = chosenIdx.y * canvas.height;
+          if(mirrorToggle.checked) x = canvas.width - x;
+          lastPointer.x = x; lastPointer.y = y;
+          pointerHand = chosen.handed;
+        }
 
-        // pinch detection: update isPinched
-        const dx = thumbPos.x - indexPos.x;
-        const dy = thumbPos.y - indexPos.y;
-        const handBox = Math.max(40, Math.abs(landmarks[0].x - landmarks[9].x) * canvas.width);
-        const dist = Math.hypot(dx, dy);
-        const pinchThreshold = Math.max(18, handBox * 0.10);
-        state.isPinched = dist < pinchThreshold;
-      } // end for each hand
+        // if both hands pinched around same time -> cycle layout
+        const leftPinched = handState.Left.isPinched;
+        const rightPinched = handState.Right.isPinched;
+        if(leftPinched && rightPinched && (now - pinchBothLast) > 700){
+          const keys = Object.keys(layouts);
+          const current = layoutSelect.value;
+          let idx = keys.indexOf(current);
+          idx = (idx + 1) % keys.length;
+          layoutSelect.value = keys[idx];
+          showToast('Layout: ' + layoutSelect.value);
+          pinchBothLast = now;
+        }
 
-      // choose pointer to visualize (prefer Right)
-      let chosenHand = null;
-      let chosenLandmarks = null;
-      for(const hp of handsList){
-        if(hp.handed === 'Right'){ chosenHand = 'Right'; chosenLandmarks = hp.landmarks; break; }
-      }
-      if(!chosenLandmarks){
-        chosenHand = handsList[0].handed;
-        chosenLandmarks = handsList[0].landmarks;
-      }
-      if(chosenLandmarks){
-        let idx = chosenLandmarks[TIP.INDEX];
-        let x = idx.x * canvas.width, y = idx.y * canvas.height;
-        if(mirrorToggle.checked) x = canvas.width - x;
-        lastPointer.x = x; lastPointer.y = y;
-        cursorEl.style.left = x + 'px'; cursorEl.style.top = y + 'px';
-
-        // in game mode, allow pinch to flap if selected finger is thumb (optional)
-        if(modeSelect.value === 'game'){
-          for(const hp of handsList){
-            const hname = hp.handed;
-            const s = handState[hname];
-            if(s.isPinched && Game.isRunning()){
-              const gf = gameFingerSel.value;
-              // allow pinch to act as flap for either hand if configured
-              if(gf === 'index' || gf === 'thumb' || gf === 'middle'){
-                Game.flap();
-              }
-            }
-          }
+        // Update pointer & mouse interactions
+        updatePointerAndMouse(now);
+      } else {
+        // no hands detected - if we had a mouseDown, release it (safety)
+        if(mouseDown){
+          // release where the cursor currently is
+          const { clientX, clientY } = mapCanvasToWindowClient(lastPointer.x, lastPointer.y);
+          dispatchPageMouseEvent('mouseup', clientX, clientY, mouseDownTarget);
+          dispatchPageMouseEvent('click', clientX, clientY, mouseDownTarget);
+          mouseDown = false; mouseDownTarget = null; cursorEl.classList.remove('down');
         }
       }
-    } // end onResults
+    }
 
-    // init MediaPipe and camera
+    // helper convert hex to rgba
+    function hexToRgba(hex, a){
+      const c = hex.replace('#','');
+      const r = parseInt(c.substring(0,2),16);
+      const g = parseInt(c.substring(2,4),16);
+      const b = parseInt(c.substring(4,6),16);
+      return `rgba(${r},${g},${b},${a})`;
+    }
+
+    // --- Camera / MediaPipe init ---
     function startCamera(){
       if(camera) return;
-      hands = new Hands({ locateFile: (file)=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
+      hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
       hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6 });
       hands.onResults(onResults);
 
-      camera = new Camera(video, { onFrame: async ()=>{ await hands.send({image: video}); }, width: 1280, height: 720 });
+      camera = new Camera(video, {
+        onFrame: async () => { await hands.send({image: video}); },
+        width: 1280, height: 720
+      });
       camera.start();
-      camera._started = true;
       startBtn.disabled = true; stopBtn.disabled = false;
-      console.debug('Camera started');
-      showToast('Camera started', 700);
     }
-    function stopCamera(){ if(camera){ camera.stop(); camera=null; } if(hands){ hands.close(); hands=null; } startBtn.disabled=false; stopBtn.disabled=true; console.debug('Camera stopped'); showToast('Camera stopped',700); }
+    function stopCamera(){ if(camera){ camera.stop(); camera = null; } if(hands){ hands.close(); hands = null; } startBtn.disabled = false; stopBtn.disabled = true; }
 
-    // UI: save/load text
-    document.getElementById('btn-save').addEventListener('click', ()=>{ localStorage.setItem('camkb_text', typed.value); showToast('Saved'); });
-    document.getElementById('btn-load').addEventListener('click', ()=>{ typed.value = localStorage.getItem('camkb_text') || ''; showToast('Loaded'); });
-    document.getElementById('btn-download').addEventListener('click', ()=>{
-      const doctype = "<!doctype html>\n";
-      const html = document.documentElement.outerHTML;
-      const blob = new Blob([doctype+html], {type:'text/html'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = 'camkb-movable-game-fixed.html'; a.click();
-      URL.revokeObjectURL(url);
-    });
-
+    // UI bindings
     startBtn.addEventListener('click', startCamera);
     stopBtn.addEventListener('click', stopCamera);
-    document.getElementById('btn-clear').addEventListener('click', ()=>{ typed.value = ''; });
-
-    // Game UI
-    gameStartBtn.addEventListener('click', ()=>{
-      Game.reset(); Game.start();
-      showToast('Game started');
+    copyBtn.addEventListener('click', async ()=>{ try{ await navigator.clipboard.writeText(typed.value); copyBtn.textContent = 'Copied'; setTimeout(()=>copyBtn.textContent='Copy',700);}catch(e){alert('Copy failed: '+e);} });
+    clearBtn.addEventListener('click', ()=>{ typed.value = ''; });
+    document.getElementById('btn-save').addEventListener('click', ()=>{ localStorage.setItem('camkb_text', typed.value); alert('Saved'); });
+    document.getElementById('btn-load').addEventListener('click', ()=>{ typed.value = localStorage.getItem('camkb_text') || ''; });
+    document.getElementById('btn-download').addEventListener('click', ()=>{
+      const doctype = "<!doctype html>\n"; const html = document.documentElement.outerHTML;
+      const blob = new Blob([doctype+html], {type:'text/html'}); const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = 'camkb-offkeyboard-mouse.html'; a.click(); URL.revokeObjectURL(url);
     });
-    gameResetBtn.addEventListener('click', ()=>{ Game.reset(); showToast('Game reset'); });
 
-    // initial positioning of handles
-    positionHandles();
+    layoutSelect.addEventListener('change', ()=>{ showToast('Layout: ' + layoutSelect.value); });
 
-    // small debug export to console
-    window.CamKB = {
-      getCorners: ()=>corners,
-      setCorners: (c)=>{ corners=c; saveCorners(); positionHandles(); showToast('corners set');}
-    };
-
-    // small visual and canvas initial clear
+    // initial canvas fill so UI looks present
     ctx.fillStyle = 'rgba(255,255,255,0.02)'; ctx.fillRect(0,0,canvas.width,canvas.height);
-    Game.reset();
-
-    // expose Game for debug
-    window.Game = Game;
-
   })();
   </script>
 </body>
